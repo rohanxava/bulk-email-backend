@@ -5,7 +5,7 @@ const User = require("../models/User");
 exports.register = async (req, res) => {
   console.log("Register body:", req.body);
 
-  const { email, password, role } = req.body;
+  const {username, email, password, role } = req.body;
 
   try {
     const existingUser = await User.findOne({ email });
@@ -13,7 +13,7 @@ exports.register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await User.create({ email, password: hashedPassword, role });
+    const user = await User.create({ username, email, password: hashedPassword, role });
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
@@ -21,6 +21,7 @@ exports.register = async (req, res) => {
       token,
       user: {
         id: user._id,
+        username: user.username,
         role: user.role,
         email: user.email,
       },
