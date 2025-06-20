@@ -1,11 +1,16 @@
 exports.sliceMap = (bounds, tileSizeKm) => {
+  const [minLat, maxLat, minLng, maxLng] = bounds;
   const tiles = [];
-  const [minLon, minLat, maxLon, maxLat] = bounds;
-  const tileSize = tileSizeKm / 111; // approx 1 deg ~ 111 km
 
-  for (let lat = minLat; lat < maxLat; lat += tileSize) {
-    for (let lon = minLon; lon < maxLon; lon += tileSize) {
-      tiles.push([lon, lat, lon + tileSize, lat + tileSize]);
+  const step = tileSizeKm * 0.009; // approx 1 km ≈ 0.009 degrees (for small areas)
+  for (let lat = minLat; lat < maxLat; lat += step) {
+    for (let lng = minLng; lng < maxLng; lng += step) {
+      tiles.push([
+        lat,
+        Math.min(lat + step, maxLat),
+        lng,
+        Math.min(lng + step, maxLng)
+      ]);
     }
   }
   return tiles;

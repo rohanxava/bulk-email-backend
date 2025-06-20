@@ -1,16 +1,19 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path'); // ✅ required for static path
+
 const authRoutes = require('./src/routes/authRoutes');
 const mapRoutes = require('./src/routes/mapRoutes');
 const tileRoutes = require('./src/routes/tileRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 
-
 const app = express();
 
 app.use(cors());
 app.use(express.json());
-// app.use('/uploads', express.static('uploads')); // to serve uploaded files
+
+// ✅ Serve static files from "uploads" folder
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
 app.use('/api/auth', authRoutes);
