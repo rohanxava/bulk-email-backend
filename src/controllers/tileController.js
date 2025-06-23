@@ -24,9 +24,15 @@ const assignTile = async (req, res) => {
   }
 };
 
+// ✅ Get tileId from req.params
+// ✅ Backend controller (Node.js)
 const completeTile = async (req, res) => {
   const { tileId } = req.params;
   const { annotations } = req.body;
+
+  if (!annotations || !Array.isArray(annotations)) {
+    return res.status(400).json({ message: "Annotations are required" });
+  }
 
   try {
     const tile = await Tile.findById(tileId);
@@ -41,8 +47,12 @@ const completeTile = async (req, res) => {
 
     res.status(200).json({ message: "Tile marked complete" });
   } catch (err) {
+    console.error("Tile submission error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
+
 
 module.exports = { assignTile, completeTile };

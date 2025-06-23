@@ -7,6 +7,6 @@ const { assignTile, completeTile } = require("../controllers/tileController");
 const authMiddleware = require("../middleware/authMiddleware");
 
 router.post("/assign", authMiddleware, assignTile);
-router.post("/complete/:tileId", authMiddleware,completeTile);
+router.post("/complete/:tileId", authMiddleware, completeTile);
 
 module.exports = router;
