@@ -6,3 +6,4 @@ router.get("/leaderboard", getLeaderboard);
 router.get("/:id/annotations", getUserAnnotations);
 
 module.exports = router;
+  
