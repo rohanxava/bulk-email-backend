@@ -1,9 +1,12 @@
-const express = require('express');
-const router = express.Router();
-const protect = require('../middleware/authMiddleware');
-const { getAssignedTile, submitTile } = require('../controllers/tileController');
+// src/routes/tileRoutes.js
 
-router.get('/assigned', protect, getAssignedTile);
-router.post('/submit', protect, submitTile);
+const express = require("express");
+const router = express.Router();
+const { assignTile, completeTile } = require("../controllers/tileController");
+const protect = require("../middleware/authMiddleware");
+const authMiddleware = require("../middleware/authMiddleware");
+
+router.post("/assign", authMiddleware, assignTile);
+router.post("/complete/:tileId", authMiddleware,completeTile);
 
 module.exports = router;
