@@ -5,80 +5,6 @@ const Map = require("../models/Map");
 const Tile = require("../models/Tile");
 const { sliceMap } = require("../utils/tileSlicer");
 
-//100*100
-
-// const generateTileImages = async (imagePath, outputDir, mapId, totalTiles) => {
-//   const metadata = await sharp(imagePath).metadata();
-
-//   console.log("Original Image Size:", metadata.width, "x", metadata.height);
-//   console.log("Total tiles requested:", totalTiles);
-
-//   const maxCols = Math.min(Math.floor(metadata.width / 100), totalTiles);
-//   const cols = Math.max(1, Math.min(Math.ceil(Math.sqrt(totalTiles)), maxCols));
-//   const rows = Math.ceil(totalTiles / cols);
-//   const tileWidth = Math.floor(metadata.width / cols);
-//   const tileHeight = Math.floor(metadata.height / rows);
-
-//   console.log(`Calculated grid: ${cols} cols x ${rows} rows`);
-//   console.log(`Each tile: ${tileWidth}x${tileHeight}px`);
-
-//   if (tileWidth <= 0 || tileHeight <= 0) {
-//     throw new Error(`Image too small for tiling. Image size: ${metadata.width}x${metadata.height}, cols: ${cols}, rows: ${rows}`);
-//   }
-
-//   if (!fs.existsSync(outputDir)) {
-//     fs.mkdirSync(outputDir, { recursive: true });
-//     console.log("Created output directory:", outputDir);
-//   }
-
-//   const imageUrls = [];
-//   let tileIndex = 0;
-
-//   for (let row = 0; row < rows; row++) {
-//     for (let col = 0; col < cols; col++) {
-//       if (tileIndex >= totalTiles) break;
-
-//       const left = col * tileWidth;
-//       const top = row * tileHeight;
-//       const width = Math.min(tileWidth, metadata.width - left);
-//       const height = Math.min(tileHeight, metadata.height - top);
-
-//       if (width <= 0 || height <= 0) {
-//         console.warn(`Skipping tile ${tileIndex}: Invalid extract size ${width}x${height}`);
-//         tileIndex++;
-//         continue;
-//       }
-
-//       const tileFileName = `${mapId}_tile_${tileIndex}.png`;
-//       const tilePath = path.join(outputDir, tileFileName);
-//       const fullUrl = `http://localhost:5000/uploads/tiles/${tileFileName}`;
-
-//       try {
-//         await sharp(imagePath)
-//           .extract({ left, top, width, height })
-//           .toFile(tilePath);
-
-//         console.log(`✅ Tile ${tileIndex} saved at: ${tilePath}`);
-//         console.log(`✅ Tile ${tileIndex} URL: ${fullUrl}`);
-
-//         imageUrls.push(fullUrl);
-//       } catch (err) {
-//         console.error(`❌ Tile ${tileIndex} extraction failed:`, err.message);
-//         imageUrls.push(null); // Push null to preserve array length
-//       }
-
-//       tileIndex++;
-//     }
-//   }
-
-//   console.log("✅ Total image URLs generated:", imageUrls.length);
-//   console.log("✅ Image URLs list:", imageUrls);
-//   return imageUrls;
-// };
-
-
-// Controller: Upload and process map
-//100*100
 const generateTileImages = async (imagePath, outputDir, mapId, rows, cols) => {
   const fixedWidth = 1024;
   const fixedHeight = 1024;
@@ -165,6 +91,7 @@ exports.uploadMap = async (req, res) => {
       fileUrl,
       bounds,
       tileSizeKm,
+      uploadedBy: req.user.id 
     });
 
     const { tiles: tileBounds, rows, cols } = sliceMap(bounds, tileSizeKm);
@@ -221,7 +148,7 @@ exports.uploadMap = async (req, res) => {
 
 exports.getMaps = async (req, res) => {
   try {
-    const maps = await Map.find().populate("tiles");
+    const maps = await Map.find({ uploadedBy: req.user.id }).populate("tiles");
     res.json(maps);
   } catch (err) {
     console.error("❌ Map fetch failed:", err);

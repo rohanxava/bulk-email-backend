@@ -24,8 +24,6 @@ const assignTile = async (req, res) => {
   }
 };
 
-// ✅ Get tileId from req.params
-// ✅ Backend controller (Node.js)
 const completeTile = async (req, res) => {
   const { tileId } = req.params;
   const { annotations } = req.body;
