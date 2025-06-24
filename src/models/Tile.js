@@ -1,16 +1,22 @@
 const mongoose = require("mongoose");
 
-const tileSchema = new mongoose.Schema({
-  map: { type: mongoose.Schema.Types.ObjectId, ref: 'Map' },
-  imageUrl: { type: String },
-  bounds: { type: [Number] }, 
- status: {
-    type: String,
-    enum: ['available', 'in_progress', 'completed'], 
-    default: 'available',
-  },  assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-  annotations: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Annotation' }],
-  submittedAt: Date
-}, { timestamps: true });
+const tileSchema = new mongoose.Schema(
+  {
+    map: { type: mongoose.Schema.Types.ObjectId, ref: "Map" },
+    imageUrl: { type: String },
+    bounds: { type: [Number] },
+    status: {
+      type: String,
+      enum: ["available", "in_progress", "completed"],
+      default: "available",
+    },
+      assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  skippedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 
-module.exports = mongoose.model('Tile', tileSchema);
+annotations: [{ type: mongoose.Schema.Types.ObjectId, ref: "Annotation" }],
+    submittedAt: Date,
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model("Tile", tileSchema);

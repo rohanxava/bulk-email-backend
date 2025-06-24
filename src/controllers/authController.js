@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
 exports.register = async (req, res) => {
-  console.log("Register body:", req.body);
+  // console.log("Register body:", req.body);
 
   const {username, email, password, role } = req.body;
 
@@ -27,14 +27,14 @@ exports.register = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Registration error:", err);
+    // console.error("Registration error:", err);
     res.status(500).json({ msg: "Registration failed" });
   }
 };
 
 
 exports.login = async (req, res) => {
-      console.log("login body:", req.body);
+      // console.log("login body:", req.body);
 
   const { email, password } = req.body;
   try {

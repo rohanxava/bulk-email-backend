@@ -8,7 +8,7 @@ exports.saveAnnotation = async (req, res) => {
     await annotation.save();
     res.status(201).json(annotation);
   } catch (error) {
-    console.error("❌ Annotation save error:", error);
+    // console.error("❌ Annotation save error:", error);
     res.status(500).json({ message: "Failed to save annotation" });
   }
 };
@@ -20,7 +20,7 @@ exports.getAnnotationsByUser = async (req, res) => {
     const annotations = await Annotation.find({ userId });
     res.json(annotations);
   } catch (error) {
-    console.error("❌ Fetch annotations error:", error);
+    // console.error("❌ Fetch annotations error:", error);
     res.status(500).json({ message: "Failed to fetch annotations" });
   }
 };

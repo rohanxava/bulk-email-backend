@@ -1,7 +1,7 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path'); // ✅ required for static path
-require('dotenv').config();
 const authRoutes = require('./src/routes/authRoutes');
 const mapRoutes = require('./src/routes/mapRoutes');
 const tileRoutes = require('./src/routes/tileRoutes');
