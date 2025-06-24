@@ -12,16 +12,12 @@ const generateTileImages = async (imagePath, outputDir, mapId, rows, cols) => {
   const tileWidth = Math.floor(fixedWidth / cols);
   const tileHeight = Math.floor(fixedHeight / rows);
 
-  // console.log(`📏 Resized image to: ${fixedWidth}x${fixedHeight}`);
-  // console.log(`🧩 Grid: ${rows} rows × ${cols} cols → Tile size: ${tileWidth}x${tileHeight}`);
-
   const resizedImageBuffer = await sharp(imagePath)
     .resize(fixedWidth, fixedHeight)
     .toBuffer();
 
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
-    // console.log("📂 Output directory created:", outputDir);
   }
 
   const imageUrls = [];
