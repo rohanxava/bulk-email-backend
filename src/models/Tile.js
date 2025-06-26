@@ -4,6 +4,7 @@ const tileSchema = new mongoose.Schema(
   {
     map: { type: mongoose.Schema.Types.ObjectId, ref: "Map" },
     imageUrl: { type: String },
+    imageName: { type: String },
     bounds: { type: [Number] },
     status: {
       type: String,
@@ -14,7 +15,8 @@ const tileSchema = new mongoose.Schema(
   skippedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 
 annotations: [{ type: mongoose.Schema.Types.ObjectId, ref: "Annotation" }],
-    submittedAt: Date,
+  annotatedImageUrl: String,
+submittedAt: Date,
   },
   { timestamps: true }
 );

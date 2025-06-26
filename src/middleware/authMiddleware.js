@@ -15,7 +15,6 @@ const authMiddleware = (req, res, next) => {
       ...decoded,            
       _id: decoded.id || decoded._id, 
     };
-    console.log("✅ Decoded Token:", req.user ); 
 
     
     next();

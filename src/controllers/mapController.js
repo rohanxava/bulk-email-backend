@@ -50,11 +50,9 @@ const generateTileImages = async (imagePath, outputDir, mapId, rows, cols) => {
     }
   }
 
-  // console.log(`✅ Total tile images generated: ${imageUrls.length}`);
   return imageUrls;
 };
 
-// Main controller
 exports.uploadMap = async (req, res) => {
   try {
     const { name, minLat, maxLat, minLng, maxLng, tileSizeKm = 10 } = req.body;
@@ -80,7 +78,6 @@ exports.uploadMap = async (req, res) => {
     const fileUrl = `/uploads/maps/${file.filename}`;
     const imagePath = path.join("uploads/maps", file.filename);
 
-    // console.log("📦 Map uploaded:", fileUrl);
 
     const newMap = await Map.create({
       name,
@@ -91,8 +88,7 @@ exports.uploadMap = async (req, res) => {
     });
 
     const { tiles: tileBounds, rows, cols } = sliceMap(bounds, tileSizeKm);
-    // console.log("✅ Tile bounds count:", tileBounds.length);
-    // console.log("✅ Grid size:", rows, "rows ×", cols, "cols");
+    
 
     const tileImages = await generateTileImages(
       imagePath,
@@ -101,32 +97,29 @@ exports.uploadMap = async (req, res) => {
       rows,
       cols
     );
+console.log("🧩 Tile Images:", tileImages); 
 
-    // console.log("✅ tileImages length:", tileImages.len/gth);
     tileImages.forEach((url, index) => {
-      // console.log(`🔢 Tile ${index} imageUrl:`, url);
+        console.log(`🧷 Tile ${index} filename:`, url?.split("/").pop());
+
     });
 
-    // ✅ Define allTiles before using it
     const allTiles = tileBounds.map((bounds, i) => ({
       map: newMap._id,
       bounds,
       status: "available",
       assignedTo: null,
       imageUrl: tileImages[i] || null,
+      imageName: tileImages[i]?.split("/").pop()?.trim() || null,
     }));
 
-    // ✅ Now it’s safe to log allTiles
     allTiles.forEach((tile, index) => {
-      // console.log(`Tile ${index}:`, {
-      //   bounds: tile.bounds,
-      //   imageUrl: tile.imageUrl
-      // });
+      console.log("🧱 Tile image file:", tileImages[index], "🧱 Clean name:", tileImages[index]?.split("/").pop()?.trim());
+
     });
 
-    // console.log("🧾 Preparing to insert allTiles...");
     const insertedTiles = await Tile.insertMany(allTiles);
-    // console.log("✅ Inserted tiles into DB:", insertedTiles.length);
+console.log("📦 Tiles to insert:", allTiles);
 
     newMap.tiles = insertedTiles.map((tile) => tile._id);
     await newMap.save();
@@ -137,7 +130,6 @@ exports.uploadMap = async (req, res) => {
       tilesCreated: insertedTiles.length,
     });
   } catch (err) {
-    // console.error("❌ Upload error:", err);
     res.status(500).json({ msg: "Upload failed", error: err.message });
   }
 };
