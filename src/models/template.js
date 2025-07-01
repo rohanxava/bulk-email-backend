@@ -1,3 +1,5 @@
+const mongoose = require('mongoose');
+
 const templateSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   name: String,

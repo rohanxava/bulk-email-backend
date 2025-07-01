@@ -3,18 +3,18 @@ const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const authMiddleware = require('./middleware/authMiddleware');
-const roleMiddleware = require('./middleware/roleMiddleware');
+const authMiddleware = require('./src/middleware/authMiddleware');
+const roleMiddleware = require('./src/middleware/roleMiddleware');
 
 // Load environment variables
 dotenv.config();
 
 // Import routes
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const projectRoutes = require('./routes/projects');
-const emailRoutes = require('./routes/emails');
-const templateRoutes = require('./routes/templates');
+const authRoutes = require('./src/routes/auth');
+const userRoutes = require('./src/routes/user');
+const projectRoutes = require('./src/routes/projects');
+const emailRoutes = require('./src/routes/emails');
+const templateRoutes = require('./src/routes/templates');
 
 // Initialize Express app
 const app = express();

@@ -1,57 +1,115 @@
 const User = require('../models/User');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const { EMAIL_FROM, EMAIL_PASSWORD } = process.env;
 
-exports.sendOtp = async (req, res) => {
+
+
+exports.createUser = async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ message: 'Email is required' });
+    const { email, name, role, password } = req.body;
 
+    if (!email || !name || !role || !password) {
+      return res.status(400).json({ message: 'Email, name, password, and role are required' });
+    }
+
+    const existing = await User.findOne({ email });
+    if (existing) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = new User({ email, name, role, password: hashedPassword });
+    await user.save();
+
+    res.status(201).json({ message: 'User created', user: { email: user.email, name: user.name, role: user.role } });
+  } catch (err) {
+    res.status(500).json({ message: 'Error creating user', error: err.message });
+  }
+};
+
+
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user)
+      return res.status(400).json({ message: 'Invalid email or password' });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch)
+      return res.status(400).json({ message: 'Invalid email or password' });
+
+    // ✅ Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = Date.now() + 10 * 60 * 1000;
 
-    const user = await User.findOneAndUpdate(
-      { email },
-      { otp, otpExpires },
-      { upsert: true, new: true }
-    );
+    // ✅ Save OTP temporarily (in-memory or DB, here using DB)
+    user.otp = otp;
+    user.otpExpiresAt = Date.now() + 5 * 60 * 1000; // 5 min expiry
+    await user.save();
 
+    // ✅ Send OTP via email
     const transporter = nodemailer.createTransport({
-      service: 'Gmail',
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_FROM,
+        pass: process.env.EMAIL_PASSWORD
+      }
     });
 
     await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: 'Your OTP Code',
-      text: `Your OTP is ${otp}`,
+      from: process.env.EMAIL_FROM,
+      to: user.email,
+      subject: 'Your OTP for MailFlow Login',
+      text: `Your OTP is ${otp}. It expires in 5 minutes.`
     });
 
-    res.json({ message: 'OTP sent' });
+    // ✅ Don't send token yet — only after OTP is verified
+    res.status(200).json({
+      message: 'OTP sent to email',
+      email: user.email,
+      userId: user._id
+    });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to send OTP', error: err.message });
+    console.error('Login error:', err);
+    res.status(500).json({ message: 'Server error' });
   }
 };
+
+
+
+
 
 exports.verifyOtp = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    if (!email || !otp) return res.status(400).json({ message: 'Email and OTP required' });
+  const { userId, otp } = req.body;
 
-    const user = await User.findOne({ email });
-    if (!user || user.otp !== otp || Date.now() > user.otpExpires) {
-      return res.status(400).json({ message: 'Invalid or expired OTP' });
-    }
-
-    user.hasVerified = true;
-    user.otp = null;
-    user.otpExpires = null;
-    await user.save();
-
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ message: 'OTP verified', token, user });
-  } catch (err) {
-    res.status(500).json({ message: 'OTP verification failed', error: err.message });
+  const user = await User.findById(userId);
+  if (!user || user.otp !== otp || Date.now() > user.otpExpiresAt) {
+    return res.status(400).json({ message: 'Invalid or expired OTP' });
   }
+
+  // ✅ Clear OTP fields
+  user.otp = null;
+  user.otpExpiresAt = null;
+  await user.save();
+
+  // ✅ Generate token now
+  const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
+    expiresIn: '1d'
+  });
+
+  res.json({
+    message: 'OTP verified',
+    token,
+    user: {
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      role: user.role
+    }
+  });
 };
+
