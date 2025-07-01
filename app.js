@@ -1,31 +1,43 @@
-require('dotenv').config();
+// --- app.js ---
 const express = require('express');
+const mongoose = require('mongoose');
+const dotenv = require('dotenv');
 const cors = require('cors');
-const path = require('path'); // ✅ required for static path
-const authRoutes = require('./src/routes/authRoutes');
-const mapRoutes = require('./src/routes/mapRoutes');
-const tileRoutes = require('./src/routes/tileRoutes');
-const userRoutes = require('./src/routes/userRoutes');
-const annotationRoutes = require('./src/routes/annotationRoutes');
+const authMiddleware = require('./middleware/authMiddleware');
+const roleMiddleware = require('./middleware/roleMiddleware');
 
+// Load environment variables
+dotenv.config();
+
+// Import routes
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
+const projectRoutes = require('./routes/projects');
+const emailRoutes = require('./routes/emails');
+const templateRoutes = require('./routes/templates');
+
+// Initialize Express app
 const app = express();
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use("/annotated_tiles", express.static(path.join(__dirname, "public/annotated_tiles")));
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => console.log('✅ MongoDB connected'))
+.catch(err => console.error('❌ MongoDB error:', err));
 
-// Routes
+// Register routes
 app.use('/api/auth', authRoutes);
-app.use('/api/maps', mapRoutes);
-app.use('/api/tiles', tileRoutes);
-app.use('/api/users', userRoutes);
-app.use("/api/annotations", annotationRoutes);
+app.use('/api/users', authMiddleware, roleMiddleware('admin'), userRoutes);
+app.use('/api/projects', authMiddleware, projectRoutes);
+app.use('/api/emails', authMiddleware, emailRoutes);
+app.use('/api/templates', authMiddleware, templateRoutes);
 
-// app.use('/api/leaderboard', userRoutes);   
-
-
-app.get('/', (req, res) => res.send('LiDAR Dashboard API Running'));
-
-module.exports = app;
+// Start server
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
