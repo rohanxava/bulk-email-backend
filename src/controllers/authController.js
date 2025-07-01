@@ -80,9 +80,6 @@ exports.login = async (req, res) => {
 };
 
 
-
-
-
 exports.verifyOtp = async (req, res) => {
   const { userId, otp } = req.body;
 
@@ -113,3 +110,36 @@ exports.verifyOtp = async (req, res) => {
   });
 };
 
+exports.resendOtp = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: 'User not found' });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = otp;
+    user.otpExpiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+    await user.save();
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_FROM,
+        pass: process.env.EMAIL_PASSWORD
+      }
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: user.email,
+      subject: 'Your OTP for MailFlow Login (Resent)',
+      text: `Your OTP is ${otp}. It expires in 5 minutes.`
+    });
+
+    res.status(200).json({ message: 'OTP resent successfully' });
+  } catch (err) {
+    console.error('Resend OTP error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
