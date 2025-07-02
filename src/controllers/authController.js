@@ -5,10 +5,9 @@ const bcrypt = require('bcryptjs');
 const { EMAIL_FROM, EMAIL_PASSWORD } = process.env;
 
 
-
 exports.createUser = async (req, res) => {
   try {
-    const { email, name, role, password } = req.body;
+    const { email, name, role, password, createdBy } = req.body;
 
     if (!email || !name || !role || !password) {
       return res.status(400).json({ message: 'Email, name, password, and role are required' });
@@ -21,14 +20,23 @@ exports.createUser = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = new User({ email, name, role, password: hashedPassword });
+    const user = new User({ email, name, role, password: hashedPassword, createdBy });
     await user.save();
 
-    res.status(201).json({ message: 'User created', user: { email: user.email, name: user.name, role: user.role } });
+    res.status(201).json({
+      message: 'User created',
+      user: {
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        createdBy: user.createdBy,
+      },
+    });
   } catch (err) {
     res.status(500).json({ message: 'Error creating user', error: err.message });
   }
 };
+
 
 
 exports.login = async (req, res) => {
