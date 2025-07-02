@@ -1,9 +1,13 @@
-// routes/projects.js
-const express = require('express');
-const router = express.Router();
-const projectController = require('../controllers/projectController');
+const express = require("express");
+const projectsController = require("../controllers/projectController");
+const authMiddleware = require("../middleware/authMiddleware");
 
-router.post('/', projectController.createProject);
-router.get('/:userId', projectController.getProjectsByUser);
+const router = express.Router();
+
+router.post("/", authMiddleware, projectsController.createProject);
+router.get("/", authMiddleware, projectsController.getProjects);
+router.get("/:id", authMiddleware, projectsController.getProjectById);
+router.put("/:id", authMiddleware, projectsController.updateProject);
+router.delete("/:id", authMiddleware, projectsController.deleteProject);
 
 module.exports = router;

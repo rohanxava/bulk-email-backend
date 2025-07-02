@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
+const templateSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    subject: { type: String, required: true },
+    htmlContent: { type: String, required: true },
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
+  },
+  { timestamps: true }
+);
 
-const templateSchema = new mongoose.Schema({
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  name: String,
-  subject: String,
-  body: String,
-  isGlobal: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now },
-});
 module.exports = mongoose.model('Template', templateSchema);

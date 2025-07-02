@@ -1,9 +1,23 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
+const projectSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+    },
+    description: String,
 
-const projectSchema = new mongoose.Schema({
-  name: String,
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  sendGridApiKey: String,
-  createdAt: { type: Date, default: Date.now },
-});
-module.exports = mongoose.model('Project', projectSchema);
+    sendgridKey: {
+      type: String,
+      required: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User", 
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model("Project", projectSchema); 

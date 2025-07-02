@@ -99,13 +99,18 @@ exports.verifyOtp = async (req, res) => {
   // ✅ Clear OTP fields
   user.otp = null;
   user.otpExpiresAt = null;
+
+  // ✅ Mark user as verified
+  user.hasVerified = true;
+
   await user.save();
 
-  // ✅ Generate token now
+  // ✅ Generate token
   const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
     expiresIn: '1d'
   });
 
+  // ✅ Send response with verified user
   res.json({
     message: 'OTP verified',
     token,
@@ -113,10 +118,12 @@ exports.verifyOtp = async (req, res) => {
       id: user._id,
       email: user.email,
       name: user.name,
-      role: user.role
+      role: user.role,
+      hasVerified: user.hasVerified  // ✅ now true
     }
   });
 };
+
 
 exports.resendOtp = async (req, res) => {
   const { email } = req.body;

@@ -1,11 +1,10 @@
-
-
-// routes/templates.js
 const express = require('express');
-const router = express.Router();
 const templateController = require('../controllers/templateController');
+const router = express.Router();
 
-router.post('/', templateController.createTemplate);
-router.get('/:userId', templateController.getTemplatesByUser);
+router.get('/', templateController.getTemplates);             // GET all templates
+router.post('/', templateController.createTemplate);          // POST new template
+router.put('/:id', templateController.updateTemplate);        // PUT update template
+router.delete('/:id', templateController.deleteTemplate);     // DELETE a template
 
 module.exports = router;
