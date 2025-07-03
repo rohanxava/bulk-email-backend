@@ -134,7 +134,7 @@ exports.resendOtp = async (req, res) => {
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     user.otp = otp;
-    user.otpExpiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+    user.otpExpiresAt = Date.now() + 5 * 60 * 1000; 
     await user.save();
 
     const transporter = nodemailer.createTransport({

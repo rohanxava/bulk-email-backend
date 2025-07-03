@@ -1,12 +1,11 @@
-// routes/users.js
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
 
-
-router.get("/users", userController.getAllUsers);
-router.delete("/users/:id", userController.deleteUser);
-router.get('/me', userController.getCurrentUser);
-router.put("/users/:id", userController.updateUser);
+// No redundant /users prefix, as it's already mounted at /api/users
+router.get('/', userController.getAllUsers);
+router.delete('/:id', userController.deleteUser);
+router.put('/:id', userController.updateUser);
+router.get('/:id', userController.getUserById);
 
 module.exports = router;
