@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema({
   password: String, 
   otp: String,
   otpExpires: Date,
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // 👈 Add this
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, 
   hasVerified: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
 });

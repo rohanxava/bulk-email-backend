@@ -1,5 +1,5 @@
-// // File: src/controllers/userController.js
-import UserModel from '../models/User.js';
+
+import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
 
 export const getAllUsers = async (req, res) => {
@@ -26,10 +26,12 @@ export const deleteUser = async (req, res) => {
 
 export const getCurrentUser = async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select('-password');
+    const user = req.user; 
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    res.status(200).json(user);
+    const { password, ...safeUser } = user.toObject();
+
+    res.status(200).json(safeUser);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
