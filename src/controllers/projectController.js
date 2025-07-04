@@ -3,22 +3,20 @@ const createProject = async (req, res) => {
   console.log("Creating project...", req.body);
 
   try {
-    const { name, description, sendgridKey } = req.body;
+    const { name, description, sendgridKey, fromEmail } = req.body;
 
-    if (!name || !sendgridKey) {
-      return res.status(400).json({ message: "Project name and SendGrid key are required" });
-    }
-
-    if (!req.user?._id) {
-      return res.status(401).json({ message: "Unauthorized" });
+    if (!name || !sendgridKey || !fromEmail) {
+      return res.status(400).json({ message: "Project name, SendGrid key, and From Email are required" });
     }
 
     const newProject = new Project({
       name,
       description,
       sendgridKey,
+      fromEmail,
       createdBy: req.user._id
     });
+
 
     const savedProject = await newProject.save();
     res.status(201).json(savedProject);
@@ -50,12 +48,16 @@ const getProjectById = async (req, res) => {
 
 const updateProject = async (req, res) => {
   try {
-    const { name, description, sendgridKey } = req.body;
+    const { name, description, sendgridKey, fromEmail } = req.body;
+
     const updated = await Project.findByIdAndUpdate(
       req.params.id,
-      { name, description, sendgridKey },
-      { new: true }
-    );
+      {
+        name,
+        description,
+        sendgridKey,
+        fromEmail
+      }, { new: true });
     if (!updated) return res.status(404).json({ message: "Project not found" });
     res.status(200).json(updated);
   } catch (error) {

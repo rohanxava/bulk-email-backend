@@ -54,14 +54,15 @@ export const sendCampaign = async (req, res) => {
       }
     });
 
-    const BASE_URL = process.env.BASE_URL || "http://localhost:5000";
+    // ✅ Use ngrok BASE_URL
+    const BASE_URL = "https://b52e-2405-201-5023-481e-8c82-a29b-dc5c-5b09.ngrok-free.app";
+
     const trackingPixel = `<img src="${BASE_URL}/api/tracking/open/${campaign._id}" width="1" height="1" style="display:none;" />`;
 
     const sendPromises = emails.map(email => {
-      // Start with base content
       let personalizedContent = htmlContent;
 
-      // Replace {{placeholders}} with actual contact values
+      // Replace placeholders with values (if CSV contact exists)
       const firstContact = contacts.find(c => c.email === email) || {};
       for (const key in firstContact) {
         personalizedContent = personalizedContent.replace(
@@ -70,28 +71,42 @@ export const sendCampaign = async (req, res) => {
         );
       }
 
-      // ✅ Rewrite links to track clicks
+      // ✅ Rewrite all links to go through click tracker
       const withTrackedLinks = personalizedContent.replace(
         /href="([^"]+)"/g,
         (match, href) => {
-          if (href.startsWith("#") || href.includes("/api/tracking/click")) return match;
+          if (href.startsWith('#') || href.includes('/api/tracking/click')) return match;
           const trackingUrl = `${BASE_URL}/api/tracking/click/${campaign._id}?redirect=${encodeURIComponent(href)}`;
           return `href="${trackingUrl}"`;
         }
       );
 
-      // ✅ Inject tracking pixel
+      // ✅ Inject open pixel
       const finalHtml = withTrackedLinks.includes("</body>")
         ? withTrackedLinks.replace("</body>", `${trackingPixel}</body>`)
         : withTrackedLinks + trackingPixel;
 
-      return sgMail.send({
-        to: email,
-        from: fromEmail,
-        subject,
-        html: finalHtml,
-      });
-    });
+    //   return sgMail.send({
+    //     to: email,
+    //     from: fromEmail,
+    //     subject,
+    //     html: finalHtml
+    //   });
+    // });
+
+
+    return sgMail.send({
+  to: email,
+  from: fromEmail,
+  subject,
+  content: [
+    {
+      type: 'text/html',
+      value: finalHtml  
+    }
+  ]
+});
+  });
 
     await Promise.all(sendPromises);
 
