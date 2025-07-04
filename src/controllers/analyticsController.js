@@ -1,6 +1,7 @@
 
 import Analytics from "../models/analytics.js";
 import Campaign from "../models/campaign.js";
+import Subscriber from "../models/subscriber.js";
 
 export const getAnalyticsSummary = async (req, res) => {
   try {

@@ -17,6 +17,10 @@ const emailRoutes = require('./src/routes/emails');
 const templateRoutes = require('./src/routes/templates');
 const campaignRoutes = require('./src/routes/campaign');
 const meRoutes = require('./src/routes/me');
+const subscriberRoutes = require('./src/routes/subscriber');
+const analyticRoutes = require('./src/routes/analytics');
+const trackingRoutes = require('./src/routes/tracking');
+
 // Initialize Express app
 const app = express();
 
@@ -40,7 +44,9 @@ app.use('/api/emails', authMiddleware, emailRoutes);
 app.use('/api/campaign', authMiddleware, campaignRoutes);
 app.use('/api/templates', authMiddleware, templateRoutes);
 app.use('/api/me', authMiddleware, meRoutes); 
-
+app.use('/api/subscriber', authMiddleware, subscriberRoutes); 
+app.use('/api/analytics', authMiddleware, analyticRoutes); 
+app.use('/api/tracking', trackingRoutes);
 
 // Start server
 const PORT = process.env.PORT || 5000;
