@@ -29,9 +29,13 @@ export const sendCampaign = async (req, res) => {
     const contacts = parsed.data;
 
     const emails = [
-      ...contacts.map(c => c.email).filter(Boolean),
-      ...(manualEmails || [])
-    ];
+  ...contacts.map(contact => {
+    const emailKey = Object.keys(contact).find(key => key.toLowerCase() === "email");
+    return emailKey ? contact[emailKey].trim() : null;
+  }).filter(Boolean),
+  ...(manualEmails || [])
+];
+
 
     // ✅ Create campaign first to get ID
     const campaign = await Campaign.create({

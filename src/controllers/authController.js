@@ -10,21 +10,47 @@ exports.createUser = async (req, res) => {
     const { email, name, role, password, createdBy } = req.body;
 
     if (!email || !name || !role || !password) {
-      return res.status(400).json({ message: 'Email, name, password, and role are required' });
+      return res
+        .status(400)
+        .json({ message: "Email, name, password, and role are required" });
     }
 
     const existing = await User.findOne({ email });
     if (existing) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: "User already exists" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = new User({ email, name, role, password: hashedPassword, createdBy });
+    const user = new User({
+      email,
+      name,
+      role,
+      password: hashedPassword,
+      createdBy,
+    });
     await user.save();
 
+    // ✅ Send Email with credentials
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_FROM,
+        pass: process.env.EMAIL_PASSWORD,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_FROM,
+      to: user.email,
+      subject: "Your XAVA MailFlow Login Credentials",
+      text: `Hello ${user.name},\n\nYour MailFlow account has been created.\n\nLogin Email: ${user.email}\nPassword: ${password}\n\nPlease login and change your password.\n\nThanks,\n XAVA MailFlow Team`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
     res.status(201).json({
-      message: 'User created',
+      message: "User created and credentials emailed",
       user: {
         email: user.email,
         name: user.name,
@@ -33,10 +59,12 @@ exports.createUser = async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ message: 'Error creating user', error: err.message });
+    console.error("User creation error:", err);
+    res
+      .status(500)
+      .json({ message: "Error creating user", error: err.message });
   }
 };
-
 
 
 exports.login = async (req, res) => {
