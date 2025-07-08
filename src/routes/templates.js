@@ -6,5 +6,7 @@ router.get('/', templateController.getTemplates);             // GET all templat
 router.post('/', templateController.createTemplate);          // POST new template
 router.put('/:id', templateController.updateTemplate);        // PUT update template
 router.delete('/:id', templateController.deleteTemplate);     // DELETE a template
+router.get("/:id", templateController.getTemplateById);
+
 
 module.exports = router;

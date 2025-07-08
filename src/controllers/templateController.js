@@ -11,14 +11,43 @@ export const createTemplate = async (req, res) => {
   }
 };
 
+
+export const getTemplateById = async (req, res) => {
+  try {
+    const templateId = req.params.id;
+
+    if (!templateId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: "Invalid template ID format" });
+    }
+
+    const template = await Template.findById(templateId);
+    if (!template) {
+      return res.status(404).json({ message: "Template not found" });
+    }
+
+    res.json(template);
+  } catch (error) {
+    console.error("Error fetching template:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// controller/templateController.js or wherever you define getTemplates
 export const getTemplates = async (req, res) => {
   try {
-    const templates = await Template.find().sort({ updatedAt: -1 });
+    const { projectId } = req.query;
+
+    // If projectId is passed, filter by it
+    const filter = projectId ? { projectId } : {};
+
+    const templates = await Template.find(filter).sort({ updatedAt: -1 });
+
     res.status(200).json(templates);
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch templates', error: err.message });
   }
 };
+
 
 // ✅ Update Template by ID
 export const updateTemplate = async (req, res) => {

@@ -7,7 +7,7 @@ const { EMAIL_FROM, EMAIL_PASSWORD } = process.env;
 
 exports.createUser = async (req, res) => {
   try {
-    const { email, name, role, password, createdBy } = req.body;
+    const { name, email, role, password, createdBy, canCreateProject } = req.body;
 
     if (!email || !name || !role || !password) {
       return res
@@ -22,13 +22,16 @@ exports.createUser = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = new User({
-      email,
-      name,
-      role,
-      password: hashedPassword,
-      createdBy,
-    });
+
+const user = new User({
+  name,
+  email,
+  role,
+  password: hashedPassword,
+  createdBy,
+  canCreateProject: canCreateProject || false,
+});
+
     await user.save();
 
     // ✅ Send Email with credentials

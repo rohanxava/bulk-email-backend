@@ -26,15 +26,24 @@ export const sendCampaign = async (req, res) => {
 
     // Parse contacts
     const parsed = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
-    const contacts = parsed.data;
+    // Parse contacts safely
+    const contacts = csvContent
+      ? Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data
+      : [];
 
     const emails = [
-  ...contacts.map(contact => {
-    const emailKey = Object.keys(contact).find(key => key.toLowerCase() === "email");
-    return emailKey ? contact[emailKey].trim() : null;
-  }).filter(Boolean),
-  ...(manualEmails || [])
-];
+      ...contacts
+        .map(contact => {
+          const emailKey = Object.keys(contact).find(key => key.toLowerCase() === "email");
+          return emailKey ? contact[emailKey].trim() : null;
+        })
+        .filter(Boolean),
+      ...(manualEmails || [])
+    ];
+
+    if (emails.length === 0) {
+      return res.status(400).json({ error: "No recipients provided" });
+    }
 
 
     // ✅ Create campaign first to get ID
@@ -90,27 +99,27 @@ export const sendCampaign = async (req, res) => {
         ? withTrackedLinks.replace("</body>", `${trackingPixel}</body>`)
         : withTrackedLinks + trackingPixel;
 
-    //   return sgMail.send({
-    //     to: email,
-    //     from: fromEmail,
-    //     subject,
-    //     html: finalHtml
-    //   });
-    // });
+      //   return sgMail.send({
+      //     to: email,
+      //     from: fromEmail,
+      //     subject,
+      //     html: finalHtml
+      //   });
+      // });
 
 
-    return sgMail.send({
-  to: email,
-  from: fromEmail,
-  subject,
-  content: [
-    {
-      type: 'text/html',
-      value: finalHtml  
-    }
-  ]
-});
-  });
+      return sgMail.send({
+        to: email,
+        from: fromEmail,
+        subject,
+        content: [
+          {
+            type: 'text/html',
+            value: finalHtml
+          }
+        ]
+      });
+    });
 
     await Promise.all(sendPromises);
 
@@ -132,8 +141,8 @@ export const sendCampaign = async (req, res) => {
 export const getCampaigns = async (req, res) => {
   try {
     const campaigns = await Campaign.find()
-  .sort({ createdDate: -1 })
-  .populate('createdBy', 'name');
+      .sort({ createdDate: -1 })
+      .populate('createdBy', 'name');
     res.status(200).json(campaigns);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch campaigns' });
