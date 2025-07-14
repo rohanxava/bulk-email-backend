@@ -136,10 +136,16 @@ exports.verifyOtp = async (req, res) => {
 
   await user.save();
 
-  // ✅ Generate token
-  const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
-    expiresIn: '1d'
-  });
+  const token = jwt.sign(
+  {
+    id: user._id,
+    role: user.role,
+    createdBy: user.createdBy || null, // ✅ add this
+    canCreateProject: user.canCreateProject || false, // ✅ optional but recommended
+  },
+  process.env.JWT_SECRET,
+  { expiresIn: '1d' }
+);
 
   // ✅ Send response with verified user
   res.json({
@@ -154,6 +160,9 @@ exports.verifyOtp = async (req, res) => {
     }
   });
 };
+
+
+
 
 
 exports.resendOtp = async (req, res) => {

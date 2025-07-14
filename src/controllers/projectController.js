@@ -1,4 +1,7 @@
 const Project = require("../models/project");
+const User = require("../models/User");
+
+
 const createProject = async (req, res) => {
   console.log("Creating project...", req.body);
 
@@ -10,12 +13,12 @@ const createProject = async (req, res) => {
     }
 
     const newProject = new Project({
-      name,
-      description,
-      sendgridKey,
-      fromEmail,
-      createdBy: req.user._id
-    });
+  name,
+  description,
+  sendgridKey,
+  fromEmail,
+  createdBy: req.user._id, 
+});
 
 
     const savedProject = await newProject.save();
@@ -29,12 +32,32 @@ const createProject = async (req, res) => {
 
 const getProjects = async (req, res) => {
   try {
-    const projects = await Project.find({ createdBy: req.user._id });
-    res.status(200).json(projects); // ✅ plain array
+    let projects;
+
+    if (req.user.role === "super_admin") {
+      // Super admin: see own + sub-users projects
+      const subUsers = await User.find({ createdBy: req.user._id }, "_id");
+      const subUserIds = subUsers.map(u => u._id);
+
+      projects = await Project.find({
+        createdBy: { $in: [req.user._id, ...subUserIds] }
+      });
+
+    } else {
+      // Sub-user: see own + super admin’s projects
+      projects = await Project.find({
+        createdBy: { $in: [req.user._id, req.user.createdBy] }
+      });
+    }
+
+    res.status(200).json(projects);
   } catch (error) {
+    console.error("Get Projects Error:", error);
     res.status(500).json({ message: "Failed to fetch projects", error });
   }
 };
+
+
 
 const getProjectById = async (req, res) => {
   try {
