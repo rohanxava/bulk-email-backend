@@ -68,8 +68,7 @@ export const sendCampaign = async (req, res) => {
     });
 
     // ✅ Use ngrok BASE_URL
-    const BASE_URL = "https://b52e-2405-201-5023-481e-8c82-a29b-dc5c-5b09.ngrok-free.app";
-
+const BASE_URL = "https://bulkmail.xavawebservices.com";
     const trackingPixel = `<img src="${BASE_URL}/api/tracking/open/${campaign._id}" width="1" height="1" style="display:none;" />`;
 
     const sendPromises = emails.map(email => {
