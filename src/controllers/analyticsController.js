@@ -10,8 +10,13 @@ export const getAnalyticsSummary = async (req, res) => {
       { $group: { _id: null, total: { $sum: "$recipients" } } },
     ]);
 
-    const opened = await Campaign.aggregate([{ $group: { _id: null, total: { $sum: "$opened" } } }]);
-    const clicks = await Campaign.aggregate([{ $group: { _id: null, total: { $sum: "$clicks" } } }]);
+    const opened = await Campaign.aggregate([
+      { $group: { _id: null, total: { $sum: "$stats.opened" } } }
+    ]);
+
+    const clicks = await Campaign.aggregate([
+      { $group: { _id: null, total: { $sum: "$stats.clicks" } } }
+    ]);
     const sent = totalEmailsSent[0]?.total || 1;
 
     const openRate = ((opened[0]?.total || 0) / sent) * 100;
