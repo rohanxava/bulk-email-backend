@@ -7,7 +7,11 @@ const projectSchema = new mongoose.Schema(
     },
     description: String,
 
-    sendgridKey: {
+    service: {
+      type: String,
+      required: true,
+    },
+    apiKey: {
       type: String,
       required: true,
     },

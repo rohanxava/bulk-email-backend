@@ -6,16 +6,17 @@ const createProject = async (req, res) => {
   console.log("Creating project...", req.body);
 
   try {
-    const { name, description, sendgridKey, fromEmail } = req.body;
+    const { name, description, service, apiKey, fromEmail } = req.body;
 
-    if (!name || !sendgridKey || !fromEmail) {
+    if (!name || !apiKey ||!service || !fromEmail) {
       return res.status(400).json({ message: "Project name, SendGrid key, and From Email are required" });
     }
 
     const newProject = new Project({
   name,
   description,
-  sendgridKey,
+  service,
+  apiKey,
   fromEmail,
   createdBy: req.user._id, 
 });
@@ -71,14 +72,15 @@ const getProjectById = async (req, res) => {
 
 const updateProject = async (req, res) => {
   try {
-    const { name, description, sendgridKey, fromEmail } = req.body;
+    const { name, description,service, apiKey, fromEmail } = req.body;
 
     const updated = await Project.findByIdAndUpdate(
       req.params.id,
       {
         name,
         description,
-        sendgridKey,
+        service,
+        apiKey,
         fromEmail
       }, { new: true });
     if (!updated) return res.status(404).json({ message: "Project not found" });
