@@ -20,6 +20,8 @@ const meRoutes = require('./src/routes/me');
 const subscriberRoutes = require('./src/routes/subscriber');
 const analyticRoutes = require('./src/routes/analytics');
 const trackingRoutes = require('./src/routes/tracking');
+const generatetemplateroutes = require('./src/routes/generatetemplate')
+
 
 // Initialize Express app
 const app = express();
@@ -47,6 +49,8 @@ app.use('/api/me', authMiddleware, meRoutes);
 app.use('/api/subscriber', authMiddleware, subscriberRoutes); 
 app.use('/api/analytics', authMiddleware, analyticRoutes); 
 app.use('/api/tracking', trackingRoutes);
+app.use('/api',generatetemplateroutes);
+
 
 // Start server
 const PORT = process.env.PORT || 5000;
