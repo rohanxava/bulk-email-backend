@@ -96,3 +96,18 @@ export const getUserById = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch user.' });
   }
 };
+
+
+
+
+export const pingUser = async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user._id, {
+      lastActive: new Date()
+    });
+    res.status(200).json({ success: true, message: 'Ping received' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update lastActive' });
+  }
+};

@@ -2,14 +2,14 @@ import Campaign from '../models/campaign.js';
 import sgMail from '@sendgrid/mail';
 import Papa from 'papaparse';
 
+
 export const sendCampaign = async (req, res) => {
-  console.log("📨 Incoming sendCampaign request:", req.body);
+  console.log("📨 Incoming sendCampaign request");
 
   try {
     const {
       subject,
       htmlContent,
-      csvContent,
       manualEmails,
       fromEmail,
       sendgridKey,
@@ -19,14 +19,7 @@ export const sendCampaign = async (req, res) => {
       templateId
     } = req.body;
 
-    if (!sendgridKey) {
-      return res.status(400).json({ error: 'SendGrid API key is missing' });
-    }
-    sgMail.setApiKey(sendgridKey);
-
-    // Parse contacts
-    const parsed = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
-    // Parse contacts safely
+    let csvContent = req.body.csvContent || "";
     const contacts = csvContent
       ? Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data
       : [];
@@ -38,15 +31,24 @@ export const sendCampaign = async (req, res) => {
           return emailKey ? contact[emailKey].trim() : null;
         })
         .filter(Boolean),
-      ...(manualEmails || [])
+      ...(
+        Array.isArray(manualEmails)
+          ? manualEmails
+          : (manualEmails && typeof manualEmails === "string")
+              ? manualEmails.split(",").map(e => e.trim()).filter(e => e.includes("@"))
+              : []
+      )
     ];
 
     if (emails.length === 0) {
       return res.status(400).json({ error: "No recipients provided" });
     }
 
+    if (!sendgridKey) {
+      return res.status(400).json({ error: 'SendGrid API key is missing' });
+    }
+    sgMail.setApiKey(sendgridKey);
 
-    // ✅ Create campaign first to get ID
     const campaign = await Campaign.create({
       campaignName,
       subject,
@@ -59,23 +61,30 @@ export const sendCampaign = async (req, res) => {
       fromEmail,
       projectId,
       templateId,
-      stats: {
-        opened: 0,
-        clicks: 0,
-        desktop: 0,
-        mobile: 0
-      }
+      stats: { opened: 0, clicks: 0, desktop: 0, mobile: 0 }
     });
 
-    // ✅ Use ngrok BASE_URL
-const BASE_URL = "https://bulkmail.xavawebservices.com";
+    const BASE_URL = "https://bulkmail.xavawebservices.com";
     const trackingPixel = `<img src="${BASE_URL}/api/tracking/open/${campaign._id}" width="1" height="1" style="display:none;" />`;
+
+    // Handle PDF Attachment
+    let attachment = null;
+    if (req.file) {
+      attachment = {
+        content: req.file.buffer.toString('base64'),
+        filename: req.file.originalname,
+        type: req.file.mimetype,
+        disposition: 'attachment'
+      };
+    }
 
     const sendPromises = emails.map(email => {
       let personalizedContent = htmlContent;
+      const firstContact = contacts.find(c => {
+        const emailKey = Object.keys(c).find(k => k.toLowerCase() === "email");
+        return emailKey && c[emailKey].trim() === email;
+      }) || {};
 
-      // Replace placeholders with values (if CSV contact exists)
-      const firstContact = contacts.find(c => c.email === email) || {};
       for (const key in firstContact) {
         personalizedContent = personalizedContent.replace(
           new RegExp(`{{${key}}}`, 'g'),
@@ -83,7 +92,6 @@ const BASE_URL = "https://bulkmail.xavawebservices.com";
         );
       }
 
-      // ✅ Rewrite all links to go through click tracker
       const withTrackedLinks = personalizedContent.replace(
         /href="([^"]+)"/g,
         (match, href) => {
@@ -93,38 +101,29 @@ const BASE_URL = "https://bulkmail.xavawebservices.com";
         }
       );
 
-      // ✅ Inject open pixel
       const finalHtml = withTrackedLinks.includes("</body>")
         ? withTrackedLinks.replace("</body>", `${trackingPixel}</body>`)
         : withTrackedLinks + trackingPixel;
 
-      //   return sgMail.send({
-      //     to: email,
-      //     from: fromEmail,
-      //     subject,
-      //     html: finalHtml
-      //   });
-      // });
-
-
-      return sgMail.send({
+      const msg = {
         to: email,
         from: fromEmail,
         subject,
-        content: [
-          {
-            type: 'text/html',
-            value: finalHtml
-          }
-        ]
-      });
+        html: finalHtml,
+      };
+
+      if (attachment) {
+        msg.attachments = [attachment];
+      }
+
+      return sgMail.send(msg);
     });
 
     await Promise.all(sendPromises);
 
     res.status(200).json({
       success: true,
-      message: "Campaign sent",
+      message: "Campaign sent with " + (attachment ? "attachment" : "no attachment"),
       emailsSent: emails.length
     });
 
@@ -136,7 +135,6 @@ const BASE_URL = "https://bulkmail.xavawebservices.com";
 
 
 
-// 📌 Get all campaigns
 export const getCampaigns = async (req, res) => {
   try {
     const campaigns = await Campaign.find()
@@ -159,7 +157,8 @@ export const getCampaignById = async (req, res) => {
   }
 };
 
-// 📌 Create or Update Campaign
+
+
 export const createOrUpdateCampaign = async (req, res) => {
   const {
     id, campaignName, subject, htmlContent, status,

@@ -3,12 +3,13 @@ const path = require("path");
 const fs = require("fs");
 const { FileDirectoryType } = require("../utils/const");
 
-console.log("multor is called");
 const fileFilter = (req, file, cb) => {
     const fileType = req?.query?.type;
 
-    if (fileType === "invoice" && file.mimetype !== "application/pdf") {
-        return cb(new Error("Invalid file type. Only PDF allowed for invoices."));
+    if (fileType === "invoice" || fileType === "template") {
+        if (file.mimetype !== "application/pdf") {
+            return cb(new Error("Invalid file type. Only PDF allowed."));
+        }
     }
 
     cb(null, true);
@@ -16,7 +17,7 @@ const fileFilter = (req, file, cb) => {
 
 const storageData = multer.diskStorage({
     destination: (req, file, cb) => {
-        const { type, fileId } = req.query;
+        const { type } = req.query;
 
         const uploadPath = FileDirectoryType[type]
             ? `./uploads${FileDirectoryType[type]}`
@@ -24,11 +25,7 @@ const storageData = multer.diskStorage({
 
         if (!uploadPath) return cb(new Error("Invalid file type"));
 
-        try {
-            fs.mkdirSync(uploadPath, { recursive: true });
-        } catch (err) {
-            return cb(new Error("Failed to create directory"));
-        }
+        fs.mkdirSync(uploadPath, { recursive: true });
 
         cb(null, uploadPath);
     },
@@ -45,4 +42,3 @@ const upload = multer({
 });
 
 module.exports = upload;
-

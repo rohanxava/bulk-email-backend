@@ -7,6 +7,8 @@ exports.FileDirectoryType = Object.freeze({
     99: '/logoImages',
     100: '/csvfiles',
     'invoice': '/invoices',
+    'template': '/templates',
+
 
 })
 

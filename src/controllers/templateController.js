@@ -1,15 +1,29 @@
 import Template from '../models/template.js';
 
+
 export const createTemplate = async (req, res) => {
   try {
     const { name, subject, htmlContent, projectId } = req.body;
-    const template = new Template({ name, subject, htmlContent, projectId });
+
+    const attachmentPath = req.file ? req.file.path : null;
+
+    const template = new Template({
+      name,
+      subject,
+      htmlContent,
+      projectId,
+      attachment: attachmentPath,
+    });
+
     await template.save();
+
     res.status(201).json(template);
   } catch (err) {
     res.status(500).json({ message: 'Failed to create template', error: err.message });
   }
 };
+
+
 
 
 export const getTemplateById = async (req, res) => {
@@ -21,18 +35,33 @@ export const getTemplateById = async (req, res) => {
     }
 
     const template = await Template.findById(templateId);
+
     if (!template) {
       return res.status(404).json({ message: "Template not found" });
     }
 
-    res.json(template);
+    // const backendUrl = process.env.BACKEND_URL || "http://localhost:5000";
+
+    const attachmentUrl = template.attachment
+      ? `${template.attachment.replace(/\\/g, "/")}`
+      : null;
+
+    res.json({
+      _id: template._id,
+      projectId: template.projectId,
+      name: template.name,
+      subject: template.subject,
+      htmlContent: template.htmlContent,
+      attachment: attachmentUrl,
+    });
   } catch (error) {
     console.error("Error fetching template:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// controller/templateController.js or wherever you define getTemplates
+
+
 export const getTemplates = async (req, res) => {
   try {
     const { projectId } = req.query;
@@ -55,11 +84,15 @@ export const updateTemplate = async (req, res) => {
     const { id } = req.params;
     const { name, subject, htmlContent, projectId } = req.body;
 
-    const updated = await Template.findByIdAndUpdate(
-      id,
-      { name, subject, htmlContent, projectId },
-      { new: true }
-    );
+    const updateData = { name, subject, htmlContent, projectId };
+
+    if (req.file) {
+      // Save file path to DB (relative or absolute as per your system)
+      const fileUrl = `/uploads/templates/${req.file.filename}`;
+      updateData.attachment = fileUrl;
+    }
+
+    const updated = await Template.findByIdAndUpdate(id, updateData, { new: true });
 
     if (!updated) {
       return res.status(404).json({ message: 'Template not found' });
@@ -70,6 +103,7 @@ export const updateTemplate = async (req, res) => {
     res.status(500).json({ message: 'Failed to update template', error: err.message });
   }
 };
+
 
 // ✅ Delete Template by ID
 export const deleteTemplate = async (req, res) => {

@@ -5,7 +5,9 @@ const templateSchema = new mongoose.Schema(
     subject: { type: String, required: true },
     htmlContent: { type: String, required: true },
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
+    attachment : { type: String },
   },
+
   { timestamps: true }
 );
 
