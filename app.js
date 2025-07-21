@@ -21,6 +21,10 @@ const subscriberRoutes = require('./src/routes/subscriber');
 const analyticRoutes = require('./src/routes/analytics');
 const trackingRoutes = require('./src/routes/tracking');
 const generatetemplateroutes = require('./src/routes/generatetemplate')
+const contactListRoutes = require('./src/routes/list')
+
+
+
 // const pinguserroutes = require('./src/routes/userping')
  
 // Initialize Express app
@@ -51,6 +55,7 @@ app.use('/api/subscriber', authMiddleware, subscriberRoutes);
 app.use('/api/analytics', authMiddleware, analyticRoutes);
 app.use('/api/tracking', trackingRoutes);
 app.use('/api',generatetemplateroutes);
+app.use('/api/lists', contactListRoutes)
 
  
 // Start server
