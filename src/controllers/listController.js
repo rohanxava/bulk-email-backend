@@ -5,110 +5,95 @@ const fs = require('fs');
 const path = require('path');
 
 exports.uploadList = async (req, res) => {
-  try {
-    const { name } = req.body;
-    const file = req.file;
+    try {
+        const { name } = req.body;
+        const file = req.file;
 
-    if (!file) return res.status(400).json({ message: 'File is required' });
+        if (!file) return res.status(400).json({ message: 'File is required' });
 
-    let contacts = [];
+        let contacts = [];
 
-    if (file.mimetype === 'text/csv') {
-      const results = [];
-      fs.createReadStream(file.path)
-        .pipe(csv())
-        .on('data', (data) => {
-          if (data.email) {
-            results.push({
-              firstName: data.firstName || data.FirstName || '',
-              lastName: data.lastName || data.LastName || '',
-              email: data.email || data.Email,
+        if (file.mimetype === 'text/csv') {
+            const results = [];
+            fs.createReadStream(file.path)
+                .pipe(csv())
+                .on('data', (data) => {
+                    if (data.email) {
+                        results.push({
+                            firstName: data.firstName || data.FirstName || '',
+                            lastName: data.lastName || data.LastName || '',
+                            email: data.email || data.Email,
+                        });
+                    }
+                })
+                .on('end', async () => {
+                    contacts = results;
+
+                    const newList = await List.create({
+                        name,
+                        fileName: file.originalname,
+                        fileType: file.mimetype,
+                        contacts,
+                        createdBy: req.user._id,  // 🔥 Save uploader ID here!
+                    });
+
+                    fs.unlinkSync(file.path);
+                    res.json(newList);
+                });
+        } else {
+            const workbook = XLSX.readFile(file.path);
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(sheet);
+
+            contacts = jsonData.map((row) => ({
+                firstName: row.firstName || row.FirstName || '',
+                lastName: row.lastName || row.LastName || '',
+                email: row.email || row.Email,
+            }));
+
+            const newList = await List.create({
+                name,
+                fileName: file.originalname,
+                fileType: file.mimetype,
+                contacts,
+                createdBy: req.user._id,  // 🔥 Save uploader ID here!
             });
-          }
-        })
-        .on('end', async () => {
-          contacts = results;
 
-          const newList = await List.create({
-            name,
-            fileName: file.originalname,
-            fileType: file.mimetype,
-            contacts,
-          });
-
-          fs.unlinkSync(file.path);
-          res.json(newList);
-        });
-    } else {
-      const workbook = XLSX.readFile(file.path);
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(sheet);
-
-      contacts = jsonData.map((row) => ({
-        firstName: row.firstName || row.FirstName || '',
-        lastName: row.lastName || row.LastName || '',
-        email: row.email || row.Email,
-      }));
-
-      const newList = await List.create({
-        name,
-        fileName: file.originalname,
-        fileType: file.mimetype,
-        contacts,
-      });
-
-      fs.unlinkSync(file.path);
-      res.json(newList);
+            fs.unlinkSync(file.path);
+            res.json(newList);
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Upload failed' });
     }
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Upload failed' });
-  }
 };
 
 exports.getLists = async (req, res) => {
-  const lists = await List.find().sort({ createdAt: -1 });
-  res.json(lists);
+
+    console.log('🧑‍💻 req.user:', req.user);
+
+    const lists = await List.find({ createdBy: req.user._id }).sort({ createdAt: -1 });
+    res.json(lists);
 };
 
 exports.deleteList = async (req, res) => {
-  await List.findByIdAndDelete(req.params.id);
-  res.json({ message: 'List deleted' });
+    await List.findByIdAndDelete(req.params.id);
+    res.json({ message: 'List deleted' });
 };
 
 exports.downloadList = async (req, res) => {
-  const list = await List.findById(req.params.id);
+    const list = await List.findById(req.params.id);
 
-  const worksheet = XLSX.utils.json_to_sheet(list.contacts);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Contacts');
+    const worksheet = XLSX.utils.json_to_sheet(list.contacts);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Contacts');
 
-  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
-  res.setHeader('Content-Disposition', `attachment; filename=${list.name}.xlsx`);
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.send(buffer);
+    res.setHeader('Content-Disposition', `attachment; filename=${list.name}.xlsx`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
 };
 
 
-exports.getAllContactLists = async (req, res) => {
-  try {
-    const lists = await ContactList.find({ createdBy: req.user._id }); // Assuming auth middleware adds user
-    res.json(lists);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch contact lists." });
-  }
-};
-
-exports.getContactListById = async (req, res) => {
-  try {
-    const list = await ContactList.findOne({ _id: req.params.id, createdBy: req.user._id });
-    if (!list) return res.status(404).json({ error: "Contact list not found." });
-    res.json(list);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch contact list." });
-  }
-};
