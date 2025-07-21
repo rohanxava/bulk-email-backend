@@ -16,29 +16,39 @@ export const sendCampaign = async (req, res) => {
       campaignName,
       createdBy,
       projectId,
-      templateId
+      templateId,
+      listContacts // <-- new field
     } = req.body;
 
     let csvContent = req.body.csvContent || "";
-    const contacts = csvContent
+
+    // Parse CSV contacts
+    const csvContacts = csvContent
       ? Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data
       : [];
 
-    const emails = [
-      ...contacts
-        .map(contact => {
-          const emailKey = Object.keys(contact).find(key => key.toLowerCase() === "email");
-          return emailKey ? contact[emailKey].trim() : null;
-        })
-        .filter(Boolean),
-      ...(
-        Array.isArray(manualEmails)
-          ? manualEmails
-          : (manualEmails && typeof manualEmails === "string")
-              ? manualEmails.split(",").map(e => e.trim()).filter(e => e.includes("@"))
-              : []
-      )
-    ];
+    // Parse selected list contacts from frontend (JSON string)
+    const dropdownContacts = listContacts ? JSON.parse(listContacts) : [];
+
+    // Merge both contact sources
+    const contacts = [...csvContacts, ...dropdownContacts];
+
+    // Collect unique emails from contacts
+    const contactEmails = contacts
+      .map(contact => {
+        const emailKey = Object.keys(contact).find(key => key.toLowerCase() === "email");
+        return emailKey ? contact[emailKey].trim() : null;
+      })
+      .filter(Boolean);
+
+    // Collect manual emails
+    const manualEmailsArray = Array.isArray(manualEmails)
+      ? manualEmails
+      : (manualEmails && typeof manualEmails === "string")
+        ? manualEmails.split(",").map(e => e.trim()).filter(e => e.includes("@"))
+        : [];
+
+    const emails = [...new Set([...contactEmails, ...manualEmailsArray])];
 
     if (emails.length === 0) {
       return res.status(400).json({ error: "No recipients provided" });
@@ -78,20 +88,40 @@ export const sendCampaign = async (req, res) => {
       };
     }
 
+    // Helper to match flexible field keys
+    const getField = (obj, possibleKeys) => {
+      for (let key of possibleKeys) {
+        const matchKey = Object.keys(obj).find(k => k.toLowerCase().replace(/\s/g, '') === key.toLowerCase().replace(/\s/g, ''));
+        if (matchKey) return obj[matchKey];
+      }
+      return null;
+    };
+
     const sendPromises = emails.map(email => {
       let personalizedContent = htmlContent;
+
       const firstContact = contacts.find(c => {
         const emailKey = Object.keys(c).find(k => k.toLowerCase() === "email");
         return emailKey && c[emailKey].trim() === email;
       }) || {};
 
+      const firstName = getField(firstContact, ["firstName", "firstname", "first name"]) || "Valued";
+      const lastName = getField(firstContact, ["lastName", "lastname", "last name"]) || "Customer";
+
+      personalizedContent = personalizedContent.replace(/{{firstName}}/g, firstName);
+      personalizedContent = personalizedContent.replace(/{{lastName}}/g, lastName);
+
+      // Replace other placeholders dynamically
       for (const key in firstContact) {
-        personalizedContent = personalizedContent.replace(
-          new RegExp(`{{${key}}}`, 'g'),
-          firstContact[key]
-        );
+        if (!["firstname", "first name", "lastname", "last name", "email"].includes(key.toLowerCase().replace(/\s/g, ''))) {
+          personalizedContent = personalizedContent.replace(
+            new RegExp(`{{${key}}}`, 'g'),
+            firstContact[key]
+          );
+        }
       }
 
+      // Handle link tracking
       const withTrackedLinks = personalizedContent.replace(
         /href="([^"]+)"/g,
         (match, href) => {
@@ -132,7 +162,6 @@ export const sendCampaign = async (req, res) => {
     res.status(500).json({ success: false, error: err.message || 'Failed to send campaign' });
   }
 };
-
 
 
 export const getCampaigns = async (req, res) => {
