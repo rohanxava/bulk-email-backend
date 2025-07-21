@@ -14,6 +14,13 @@ const campaignSchema = new mongoose.Schema({
   createdDate: { type: Date, default: Date.now },
   csvContent: { type: String, default: "" },
   manualEmails: [{ type: String }],
+  contacts: [
+    {
+      firstName: String,
+      lastName: String,
+      email: String,
+    },
+  ],
   projectId: { type: String },
   templateId: { type: String },
   fromEmail: { type: String, default: "no-reply@example.com" },

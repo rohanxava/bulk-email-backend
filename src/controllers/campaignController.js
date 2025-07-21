@@ -2,7 +2,6 @@ import Campaign from '../models/campaign.js';
 import sgMail from '@sendgrid/mail';
 import Papa from 'papaparse';
 
-
 export const sendCampaign = async (req, res) => {
   console.log("📨 Incoming sendCampaign request");
 
@@ -17,7 +16,7 @@ export const sendCampaign = async (req, res) => {
       createdBy,
       projectId,
       templateId,
-      listContacts // <-- new field
+      listContacts
     } = req.body;
 
     let csvContent = req.body.csvContent || "";
@@ -27,38 +26,47 @@ export const sendCampaign = async (req, res) => {
       ? Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data
       : [];
 
-    // Parse selected list contacts from frontend (JSON string)
+    // Parse selected list contacts from frontend
     const dropdownContacts = listContacts ? JSON.parse(listContacts) : [];
 
-    // Merge both contact sources
-    const contacts = [...csvContacts, ...dropdownContacts];
-
-    // Collect unique emails from contacts
-    const contactEmails = contacts
-      .map(contact => {
-        const emailKey = Object.keys(contact).find(key => key.toLowerCase() === "email");
-        return emailKey ? contact[emailKey].trim() : null;
-      })
-      .filter(Boolean);
-
-    // Collect manual emails
-    const manualEmailsArray = Array.isArray(manualEmails)
+    // Convert manual emails into contacts
+    const manualContactObjects = (Array.isArray(manualEmails)
       ? manualEmails
       : (manualEmails && typeof manualEmails === "string")
         ? manualEmails.split(",").map(e => e.trim()).filter(e => e.includes("@"))
-        : [];
+        : []
+    ).map(email => ({ email }));
 
-    const emails = [...new Set([...contactEmails, ...manualEmailsArray])];
+    // Merge all contacts
+    const allContacts = [...csvContacts, ...dropdownContacts, ...manualContactObjects];
 
-    if (emails.length === 0) {
-      return res.status(400).json({ error: "No recipients provided" });
+    // Deduplicate by email
+    const uniqueContactsMap = {};
+    allContacts.forEach(contact => {
+      const emailKey = Object.keys(contact).find(key => key.toLowerCase() === "email");
+      if (emailKey && contact[emailKey]) {
+        uniqueContactsMap[contact[emailKey].toLowerCase()] = contact;
+      }
+    });
+
+    const finalContacts = Object.values(uniqueContactsMap);
+
+    if (finalContacts.length === 0) {
+      return res.status(400).json({ error: "No valid contacts provided" });
     }
 
     if (!sendgridKey) {
       return res.status(400).json({ error: 'SendGrid API key is missing' });
     }
+
     sgMail.setApiKey(sendgridKey);
 
+    const emails = finalContacts.map(c => {
+      const emailKey = Object.keys(c).find(k => k.toLowerCase() === "email");
+      return c[emailKey];
+    });
+
+    // Create Campaign with contacts saved
     const campaign = await Campaign.create({
       campaignName,
       subject,
@@ -71,6 +79,7 @@ export const sendCampaign = async (req, res) => {
       fromEmail,
       projectId,
       templateId,
+      contacts: finalContacts, // ✅ Save contacts for edit mode
       stats: { opened: 0, clicks: 0, desktop: 0, mobile: 0 }
     });
 
@@ -88,22 +97,22 @@ export const sendCampaign = async (req, res) => {
       };
     }
 
-    // Helper to match flexible field keys
-    const getField = (obj, possibleKeys) => {
-      for (let key of possibleKeys) {
-        const matchKey = Object.keys(obj).find(k => k.toLowerCase().replace(/\s/g, '') === key.toLowerCase().replace(/\s/g, ''));
-        if (matchKey) return obj[matchKey];
-      }
-      return null;
-    };
-
     const sendPromises = emails.map(email => {
       let personalizedContent = htmlContent;
 
-      const firstContact = contacts.find(c => {
+      const firstContact = finalContacts.find(c => {
         const emailKey = Object.keys(c).find(k => k.toLowerCase() === "email");
-        return emailKey && c[emailKey].trim() === email;
+        return emailKey && c[emailKey].toLowerCase() === email.toLowerCase();
       }) || {};
+
+      // Flexible key matching
+      const getField = (obj, keys) => {
+        for (let key of keys) {
+          const found = Object.keys(obj).find(k => k.toLowerCase().replace(/\s/g, '') === key.toLowerCase().replace(/\s/g, ''));
+          if (found) return obj[found];
+        }
+        return null;
+      };
 
       const firstName = getField(firstContact, ["firstName", "firstname", "first name"]) || "Valued";
       const lastName = getField(firstContact, ["lastName", "lastname", "last name"]) || "Customer";
@@ -121,7 +130,7 @@ export const sendCampaign = async (req, res) => {
         }
       }
 
-      // Handle link tracking
+      // Link tracking
       const withTrackedLinks = personalizedContent.replace(
         /href="([^"]+)"/g,
         (match, href) => {
@@ -140,11 +149,8 @@ export const sendCampaign = async (req, res) => {
         from: fromEmail,
         subject,
         html: finalHtml,
+        ...(attachment && { attachments: [attachment] })
       };
-
-      if (attachment) {
-        msg.attachments = [attachment];
-      }
 
       return sgMail.send(msg);
     });
@@ -153,7 +159,7 @@ export const sendCampaign = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Campaign sent with " + (attachment ? "attachment" : "no attachment"),
+      message: "Campaign sent successfully",
       emailsSent: emails.length
     });
 
@@ -162,6 +168,7 @@ export const sendCampaign = async (req, res) => {
     res.status(500).json({ success: false, error: err.message || 'Failed to send campaign' });
   }
 };
+
 
 
 export const getCampaigns = async (req, res) => {
