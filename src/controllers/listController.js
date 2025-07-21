@@ -83,17 +83,37 @@ exports.deleteList = async (req, res) => {
 };
 
 exports.downloadList = async (req, res) => {
+  try {
     const list = await List.findById(req.params.id);
 
-    const worksheet = XLSX.utils.json_to_sheet(list.contacts);
+    if (!list) {
+      return res.status(404).json({ message: 'List not found' });
+    }
+
+    // Clean contacts data to avoid Mongoose metadata
+    const contacts = list.contacts.map(c => ({
+      firstName: c.firstName,
+      lastName: c.lastName,
+      email: c.email
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(contacts);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Contacts');
 
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
-    res.setHeader('Content-Disposition', `attachment; filename=${list.name}.xlsx`);
+    res.setHeader('Content-Disposition', `attachment; filename="${list.name}.xlsx"`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.send(buffer);
+    
+    res.end(buffer);
+    
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server Error' });
+  }
 };
+
+
 
 
