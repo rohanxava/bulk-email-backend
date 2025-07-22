@@ -27,7 +27,15 @@ export const sendCampaign = async (req, res) => {
       : [];
 
     // Parse selected list contacts from frontend
-    const dropdownContacts = listContacts ? JSON.parse(listContacts) : [];
+    let dropdownContacts = [];
+    if (listContacts) {
+      try {
+        dropdownContacts = typeof listContacts === 'string' ? JSON.parse(listContacts) : listContacts;
+      } catch (err) {
+        console.error("Failed to parse listContacts:", listContacts);
+        dropdownContacts = [];
+      }
+    }
 
     // Convert manual emails into contacts
     const manualContactObjects = (Array.isArray(manualEmails)
@@ -122,13 +130,29 @@ export const sendCampaign = async (req, res) => {
 
       // Replace other placeholders dynamically
       for (const key in firstContact) {
-        if (!["firstname", "first name", "lastname", "last name", "email"].includes(key.toLowerCase().replace(/\s/g, ''))) {
-          personalizedContent = personalizedContent.replace(
-            new RegExp(`{{${key}}}`, 'g'),
-            firstContact[key]
-          );
+        const normalizedKey = key.toLowerCase().replace(/\s/g, '');
+
+        if (["firstname", "first name", "lastname", "last name", "email"].includes(normalizedKey)) {
+          continue; // already handled
         }
+
+        const value = firstContact[key];
+
+        if (value === null || value === undefined) continue;
+
+        if (typeof value === 'object') {
+          // Skip objects to prevent [object Object]
+          console.warn(`Skipping placeholder {{${key}}} because value is an object.`);
+          continue;
+        }
+
+        personalizedContent = personalizedContent.replace(
+          new RegExp(`{{${key}}}`, 'g'),
+          String(value)
+        );
       }
+
+
 
       // Link tracking
       const withTrackedLinks = personalizedContent.replace(

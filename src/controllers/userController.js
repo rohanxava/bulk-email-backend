@@ -98,8 +98,6 @@ export const getUserById = async (req, res) => {
 };
 
 
-
-
 export const pingUser = async (req, res) => {
   try {
     await User.findByIdAndUpdate(req.user._id, {
