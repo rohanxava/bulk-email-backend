@@ -4,7 +4,8 @@ const campaignSchema = new mongoose.Schema({
   campaignName: { type: String, required: true },
   subject: { type: String, required: true },
   htmlContent: { type: String, required: true },
-  status: { type: String, enum: ['Draft', 'Active', 'Sent', 'Failed'], default: 'Draft' },
+  scheduleDate: { type: Date },
+  status: { type: String, enum: ["Draft", "Scheduled", "Sent"], default: "Draft" },
   recipients: { type: Number, default: 0 },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
