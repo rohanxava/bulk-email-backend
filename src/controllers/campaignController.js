@@ -16,16 +16,17 @@ export const sendCampaign = async (req, res) => {
       createdBy,
       projectId,
       templateId,
-      listContacts,
-      scheduleDate
+      listContacts
     } = req.body;
 
     let csvContent = req.body.csvContent || "";
 
+    // Parse CSV contacts
     const csvContacts = csvContent
       ? Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data
       : [];
 
+    // Parse selected list contacts from frontend
     let dropdownContacts = [];
     if (listContacts) {
       try {
@@ -36,6 +37,7 @@ export const sendCampaign = async (req, res) => {
       }
     }
 
+    // Convert manual emails into contacts
     const manualContactObjects = (Array.isArray(manualEmails)
       ? manualEmails
       : (manualEmails && typeof manualEmails === "string")
@@ -43,8 +45,10 @@ export const sendCampaign = async (req, res) => {
         : []
     ).map(email => ({ email }));
 
+    // Merge all contacts
     const allContacts = [...csvContacts, ...dropdownContacts, ...manualContactObjects];
 
+    // Deduplicate by email
     const uniqueContactsMap = {};
     allContacts.forEach(contact => {
       const emailKey = Object.keys(contact).find(key => key.toLowerCase() === "email");
@@ -70,16 +74,12 @@ export const sendCampaign = async (req, res) => {
       return c[emailKey];
     });
 
-    const parsedSchedule = scheduleDate ? new Date(scheduleDate) : null;
-    const now = new Date();
-    const isFutureSchedule = parsedSchedule && parsedSchedule > now;
-
-    // Save the campaign regardless
+    // Create Campaign with contacts saved
     const campaign = await Campaign.create({
       campaignName,
       subject,
       htmlContent,
-      status: isFutureSchedule ? 'Scheduled' : 'Sent',
+      status: 'Sent',
       recipients: emails.length,
       createdBy,
       csvContent,
@@ -87,23 +87,14 @@ export const sendCampaign = async (req, res) => {
       fromEmail,
       projectId,
       templateId,
-      scheduleDate: parsedSchedule || null,
-      contacts: finalContacts,
+      contacts: finalContacts, // ✅ Save contacts for edit mode
       stats: { opened: 0, clicks: 0, desktop: 0, mobile: 0 }
     });
 
-    if (isFutureSchedule) {
-      return res.status(200).json({
-        success: true,
-        message: `Campaign scheduled for ${parsedSchedule.toISOString()}`,
-        scheduled: true,
-      });
-    }
-
-    // Proceed with sending immediately if not scheduled
     const BASE_URL = "https://bulkmail.xavawebservices.com";
     const trackingPixel = `<img src="${BASE_URL}/api/tracking/open/${campaign._id}" width="1" height="1" style="display:none;" />`;
 
+    // Handle PDF Attachment
     let attachment = null;
     if (req.file) {
       attachment = {
@@ -122,6 +113,7 @@ export const sendCampaign = async (req, res) => {
         return emailKey && c[emailKey].toLowerCase() === email.toLowerCase();
       }) || {};
 
+      // Flexible key matching
       const getField = (obj, keys) => {
         for (let key of keys) {
           const found = Object.keys(obj).find(k => k.toLowerCase().replace(/\s/g, '') === key.toLowerCase().replace(/\s/g, ''));
@@ -136,16 +128,23 @@ export const sendCampaign = async (req, res) => {
       personalizedContent = personalizedContent.replace(/{{firstName}}/g, firstName);
       personalizedContent = personalizedContent.replace(/{{lastName}}/g, lastName);
 
+      // Replace other placeholders dynamically
       for (const key in firstContact) {
-        const normalizedKey = key.toLowerCase().replace(/\s/g, '');
-        if (["firstname", "first name", "lastname", "last name", "email"].includes(normalizedKey)) continue;
-
-        const value = firstContact[key];
-        if (value === null || value === undefined || typeof value === 'object') continue;
-
-        personalizedContent = personalizedContent.replace(new RegExp(`{{${key}}}`, 'g'), String(value));
+        if (
+          !["firstname", "first name", "lastname", "last name", "email"].includes(key.toLowerCase().replace(/\s/g, '')) &&
+          typeof firstContact[key] !== 'object' &&
+          firstContact[key] !== null &&
+          firstContact[key] !== undefined
+        ) {
+          personalizedContent = personalizedContent.replace(
+            new RegExp(`{{${key}}}`, 'g'),
+            String(firstContact[key])
+          );
+        }
       }
 
+
+      // Link tracking
       const withTrackedLinks = personalizedContent.replace(
         /href="([^"]+)"/g,
         (match, href) => {
@@ -183,7 +182,6 @@ export const sendCampaign = async (req, res) => {
     res.status(500).json({ success: false, error: err.message || 'Failed to send campaign' });
   }
 };
-
 
 
 
