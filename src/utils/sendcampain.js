@@ -1,3 +1,4 @@
+// sendCampaignUtility.js
 import sgMail from '@sendgrid/mail';
 import Papa from 'papaparse';
 
@@ -14,8 +15,8 @@ export const sendCampaignUtility = async (campaign) => {
       contacts = [],
       sendgridKey,
       _id,
-      attachmentFile, // optional: Buffer/file to attach
-      attachmentMeta, // { filename, mimetype }
+      attachmentFile,
+      attachmentMeta,
     } = campaign;
 
     if (!sendgridKey) {
@@ -24,12 +25,10 @@ export const sendCampaignUtility = async (campaign) => {
 
     sgMail.setApiKey(sendgridKey);
 
-    // 🔄 Parse CSV contacts
     const csvContacts = csvContent
       ? Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data
       : [];
 
-    // 🔄 Manual emails
     const manualContactObjects = (Array.isArray(manualEmails)
       ? manualEmails
       : (typeof manualEmails === 'string'
@@ -39,7 +38,6 @@ export const sendCampaignUtility = async (campaign) => {
 
     const allContacts = [...csvContacts, ...contacts, ...manualContactObjects];
 
-    // ✅ Deduplicate by email
     const uniqueContactsMap = {};
     allContacts.forEach(contact => {
       const emailKey = Object.keys(contact).find(key => key.toLowerCase() === 'email');
@@ -83,7 +81,6 @@ export const sendCampaignUtility = async (campaign) => {
       personalizedContent = personalizedContent.replace(/{{firstName}}/g, firstName);
       personalizedContent = personalizedContent.replace(/{{lastName}}/g, lastName);
 
-      // 🔁 Replace custom fields
       for (const key in contact) {
         const normalizedKey = key.toLowerCase().replace(/\s/g, '');
         if (["firstname", "first name", "lastname", "last name", "email"].includes(normalizedKey)) continue;
@@ -94,7 +91,6 @@ export const sendCampaignUtility = async (campaign) => {
         }
       }
 
-      // 🔗 Track links
       const withTrackedLinks = personalizedContent.replace(
         /href="([^"]+)"/g,
         (match, href) => {
@@ -104,7 +100,6 @@ export const sendCampaignUtility = async (campaign) => {
         }
       );
 
-      // 📸 Add tracking pixel
       const finalHtml = withTrackedLinks.includes("</body>")
         ? withTrackedLinks.replace("</body>", `${trackingPixel}</body>`)
         : withTrackedLinks + trackingPixel;
@@ -116,10 +111,9 @@ export const sendCampaignUtility = async (campaign) => {
         html: finalHtml,
       };
 
-      // 📎 Attachment support
       if (attachmentFile && attachmentMeta) {
         msg.attachments = [{
-          content: attachmentFile.toString('base64'),
+          content: attachmentFile,
           filename: attachmentMeta.filename,
           type: attachmentMeta.mimetype,
           disposition: 'attachment'
@@ -133,7 +127,15 @@ export const sendCampaignUtility = async (campaign) => {
 
     return { success: true, emailsSent: emails.length };
   } catch (err) {
-    console.error("❌ sendCampaignUtility error:", err);
-    return { success: false, error: err.message };
+  console.error("❌ sendCampaignUtility error:", err);
+
+  if (err.response?.body?.errors) {
+    console.error("📩 SendGrid Error Details:", JSON.stringify(err.response.body.errors, null, 2));
   }
+
+  return { success: false, error: err.message };
+}
 };
+
+
+

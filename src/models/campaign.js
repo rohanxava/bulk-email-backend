@@ -31,6 +31,12 @@ const campaignSchema = new mongoose.Schema({
     opened: { type: Number, default: 0 },
     clicks: { type: Number, default: 0 }
   },
+  attachmentFile: { type: String, default: null }, // base64-encoded content
+  attachmentMeta: {
+    filename: { type: String },
+    mimetype: { type: String },
+    disposition: { type: String },
+  }
 });
 
 module.exports = mongoose.model('Campaign', campaignSchema);

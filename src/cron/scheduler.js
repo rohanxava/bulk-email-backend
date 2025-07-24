@@ -1,7 +1,8 @@
+// cron.js
 import cron from "node-cron";
 import Campaign from "../models/campaign.js";
 import List from "../models/list.js";
-// import Contact from "../models/contact.js";
+import Project from "../models/project.js"; // ✅ Don't forget to import Project
 import { sendCampaignUtility } from "../utils/sendcampain.js";
 
 cron.schedule("* * * * *", async () => {
@@ -17,7 +18,7 @@ cron.schedule("* * * * *", async () => {
     try {
       let contactList = [];
 
-      // Load contacts from list if campaign uses listContacts
+      // 📋 Load contacts from list
       if (campaign.listContacts && campaign.listContacts.length > 0) {
         const list = await List.findById(campaign.listContacts).populate("contacts");
         if (list && list.contacts) {
@@ -29,7 +30,7 @@ cron.schedule("* * * * *", async () => {
         }
       }
 
-      // Add manualEmails if present
+      // 📬 Add manual emails
       if (campaign.manualEmails && campaign.manualEmails.length > 0) {
         const manualContacts = campaign.manualEmails.map((email) => ({
           email,
@@ -39,8 +40,19 @@ cron.schedule("* * * * *", async () => {
         contactList = [...contactList, ...manualContacts];
       }
 
-      // Pass full contactList to utility
-      const result = await sendCampaignUtility(campaign, contactList);
+      // 🔐 Fetch Project for API key and fromEmail
+      const project = await Project.findById(campaign.projectId);
+      if (!project) {
+        console.error(`❌ Project not found for campaign: ${campaign._id}`);
+        continue;
+      }
+
+      const result = await sendCampaignUtility({
+        ...campaign.toObject(),
+        contacts: contactList,
+        sendgridKey: project.apiKey,
+        fromEmail: project.fromEmail,
+      });
 
       if (result.success) {
         campaign.status = "Sent";
