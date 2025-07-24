@@ -36,7 +36,12 @@ const campaignSchema = new mongoose.Schema({
     filename: { type: String },
     mimetype: { type: String },
     disposition: { type: String },
-  }
+  },
+  hasBeenSent: {
+  type: Boolean,
+  default: false,
+},
+
 });
 
 module.exports = mongoose.model('Campaign', campaignSchema);

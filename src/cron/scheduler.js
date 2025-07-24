@@ -7,12 +7,22 @@ import { sendCampaignUtility } from "../utils/sendcampain.js";
 
 cron.schedule("* * * * *", async () => {
   console.log("⏰ Checking for scheduled campaigns...");
+
   const now = new Date();
 
-  const campaigns = await Campaign.find({
-    status: "Scheduled",
-    scheduleDate: { $lte: now },
-  });
+  const campaigns = await Campaign.findOneAndUpdate(
+  {
+    scheduleDate: { $lte: new Date() },
+    hasBeenSent: false,
+  },
+  {
+    $set: { hasBeenSent: true },
+  },
+  { new: true }
+);
+
+
+
 
   for (const campaign of campaigns) {
     try {
@@ -47,6 +57,11 @@ cron.schedule("* * * * *", async () => {
         continue;
       }
 
+      if (campaign.hasBeenSent) {
+        console.warn(`⚠️ Campaign ${campaign._id} already marked sent, skipping.`);
+        continue;
+      }
+
       const result = await sendCampaignUtility({
         ...campaign.toObject(),
         contacts: contactList,
@@ -55,7 +70,9 @@ cron.schedule("* * * * *", async () => {
       });
 
       if (result.success) {
+        // ✅ Mark campaign as sent
         campaign.status = "Sent";
+        campaign.hasBeenSent = true; 
         await campaign.save();
         console.log(`✅ Sent scheduled campaign: ${campaign.campaignName} (${result.emailsSent} emails)`);
       } else {

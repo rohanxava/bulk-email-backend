@@ -6,6 +6,10 @@ const BASE_URL = "https://bulkmail.xavawebservices.com";
 
 export const sendCampaignUtility = async (campaign) => {
   try {
+    if (campaign.hasBeenSent) {
+      console.log(`⚠️ Campaign ${campaign._id} already sent. Skipping.`);
+      return { success: false, message: 'Campaign already sent' };
+    }
     const {
       htmlContent,
       subject,
@@ -125,16 +129,17 @@ export const sendCampaignUtility = async (campaign) => {
 
     await Promise.all(sendPromises);
 
+
     return { success: true, emailsSent: emails.length };
   } catch (err) {
-  console.error("❌ sendCampaignUtility error:", err);
+    console.error("❌ sendCampaignUtility error:", err);
 
-  if (err.response?.body?.errors) {
-    console.error("📩 SendGrid Error Details:", JSON.stringify(err.response.body.errors, null, 2));
+    if (err.response?.body?.errors) {
+      console.error("📩 SendGrid Error Details:", JSON.stringify(err.response.body.errors, null, 2));
+    }
+
+    return { success: false, error: err.message };
   }
-
-  return { success: false, error: err.message };
-}
 };
 
 
