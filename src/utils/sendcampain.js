@@ -151,8 +151,6 @@ export const sendCampaignUtility = async (campaign) => {
     });
 
     await Promise.all(sendPromises);
-    await campaign.updateOne({ _id }, { $set: { hasBeenSent: true } });
-
 
 
     return { success: true, emailsSent: finalContacts.length };
