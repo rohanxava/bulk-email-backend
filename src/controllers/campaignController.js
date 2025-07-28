@@ -26,8 +26,12 @@ export const sendCampaign = async (req, res) => {
 
     // 🔹 Parse CSV contacts
     const csvContacts = csvContent
-      ? Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data
-      : [];
+  ? Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data.map((row) => ({
+      email: row.Email || row.email || row["email address"] || "",
+      firstName: row.FirstName || row["First Name"] || row.firstname || "",
+      lastName: row.LastName || row["Last Name"] || row.lastname || "",
+    }))
+  : [];
 
     // 🔹 Parse dropdown (list) contacts
     let dropdownContacts = [];
@@ -82,6 +86,7 @@ export const sendCampaign = async (req, res) => {
     const parsedSchedule = scheduleDate ? new Date(scheduleDate) : null;
     const now = new Date();
     const isFutureSchedule = parsedSchedule && parsedSchedule > now;
+    
     // 🔹 Handle file attachment (PDF, etc.)
     let attachment = null;
 
@@ -105,7 +110,6 @@ export const sendCampaign = async (req, res) => {
         };
       }
     }
-    
     let attachmentFile = null;
     let attachmentMeta = null;
 
@@ -232,8 +236,6 @@ export const sendCampaign = async (req, res) => {
     res.status(500).json({ success: false, error: err.message || 'Failed to send campaign' });
   }
 };
-
-
 
 
 export const getCampaigns = async (req, res) => {
