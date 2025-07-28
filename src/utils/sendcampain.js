@@ -29,12 +29,12 @@ export const sendCampaignUtility = async (campaign) => {
 
     sgMail.setApiKey(sendgridKey);
 
-    // Parse CSV
+    // Parse CSV contacts
     const csvContacts = csvContent
       ? Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data
       : [];
 
-    // Normalize manualEmails input
+    // Normalize manualEmails
     const manualContactObjects = (
       Array.isArray(manualEmails)
         ? manualEmails
@@ -42,15 +42,23 @@ export const sendCampaignUtility = async (campaign) => {
           ? manualEmails.split(',').map(e => e.trim())
           : []
     ).map(entry => {
-      if (typeof entry === 'string') return { email: entry };
-      if (typeof entry === 'object' && entry.email) return { email: entry.email, ...entry };
+      if (typeof entry === 'string') {
+        return { email: entry, firstName: '', lastName: '' };
+      }
+      if (typeof entry === 'object' && entry.email) {
+        return {
+          email: entry.email.trim(),
+          firstName: entry.firstName || '',
+          lastName: entry.lastName || ''
+        };
+      }
       return null;
     }).filter(Boolean);
 
-    // Combine all contacts
+    // Combine all contacts - CSV takes priority
     const allContacts = [...manualContactObjects, ...contacts, ...csvContacts];
 
-    // Helper to extract flexible field names
+    // Normalize field extractor
     const getField = (obj, keys) => {
       for (let key of keys) {
         const match = Object.keys(obj).find(k =>
@@ -58,24 +66,26 @@ export const sendCampaignUtility = async (campaign) => {
         );
         if (match) return obj[match];
       }
-      return null;
+      return '';
     };
 
-    // Normalize and deduplicate contacts
+    // Deduplicate by email
     const uniqueContactsMap = {};
-    allContacts.forEach(contact => {
-      const emailKey = Object.keys(contact).find(key => key.toLowerCase() === 'email');
-      if (!emailKey) return;
-      const email = contact[emailKey].trim().toLowerCase();
-      const firstName = getField(contact, ["firstName", "firstname", "first name"]);
-      const lastName = getField(contact, ["lastName", "lastname", "last name"]);
+    for (const contact of allContacts) {
+      const rawEmail = getField(contact, ['email']);
+      if (!rawEmail) continue;
+
+      const email = rawEmail.trim().toLowerCase();
+      const firstName = getField(contact, ['firstName', 'firstname', 'first name']);
+      const lastName = getField(contact, ['lastName', 'lastname', 'last name']);
+
       uniqueContactsMap[email] = {
-        ...contact,
         email,
         firstName,
-        lastName
+        lastName,
+        ...contact
       };
-    });
+    }
 
     const finalContacts = Object.values(uniqueContactsMap);
 
@@ -87,10 +97,8 @@ export const sendCampaignUtility = async (campaign) => {
 
     const sendPromises = finalContacts.map(contact => {
       const email = contact.email;
-      console.log("📧 Sending to 909090:", contact.email, "| First Name:", contact.firstName, "| Last Name:", contact.lastName);
-
-      const firstName = contact.firstName || "Valued";
-      const lastName = contact.lastName || "Customer";
+      const firstName = contact.firstName?.trim() || "Valued";
+      const lastName = contact.lastName?.trim() || "Customer";
 
       console.log("📧 Sending to:", email, "| First Name:", firstName, "| Last Name:", lastName);
 
@@ -98,7 +106,7 @@ export const sendCampaignUtility = async (campaign) => {
         .replace(/{{firstName}}/g, firstName)
         .replace(/{{lastName}}/g, lastName);
 
-      // Replace additional custom fields
+      // Handle custom fields
       for (const key in contact) {
         const normalizedKey = key.toLowerCase().replace(/\s/g, '');
         if (["firstname", "first name", "lastname", "last name", "email"].includes(normalizedKey)) continue;
@@ -143,6 +151,9 @@ export const sendCampaignUtility = async (campaign) => {
     });
 
     await Promise.all(sendPromises);
+    await campaign.updateOne({ _id }, { $set: { hasBeenSent: true } });
+
+
 
     return { success: true, emailsSent: finalContacts.length };
   } catch (err) {
