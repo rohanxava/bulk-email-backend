@@ -1,5 +1,6 @@
 import sgMail from '@sendgrid/mail';
 import Papa from 'papaparse';
+import Campaign from '../models/campaign.js';
 
 const BASE_URL = "https://bulkmail.xavawebservices.com";
 
@@ -11,11 +12,27 @@ function chunkArray(array, size) {
   return result;
 }
 
+const isValidEmail = (email) => {
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return typeof email === 'string' && re.test(email) && email.length <= 254;
+};
+
 export const sendCampaignUtility = async (campaign) => {
   try {
     if (campaign.hasBeenSent) {
       console.log(`⚠️ Campaign ${campaign._id} already sent. Skipping.`);
       return { success: false, message: 'Campaign already sent' };
+    }
+
+    const locked = await Campaign.findOneAndUpdate(
+      { _id: campaign._id, hasBeenSent: false, status: { $ne: "sending" } },
+      { $set: { status: "sending", sendingStartedAt: new Date() } },
+      { new: true }
+    );
+
+    if (!locked) {
+      console.log(`🔒 Campaign ${campaign._id} is already being processed. Skipping.`);
+      return { success: false, message: 'Campaign is already being processed' };
     }
 
     const {
@@ -53,7 +70,7 @@ export const sendCampaignUtility = async (campaign) => {
       }
       if (typeof entry === 'object' && entry.email) {
         return {
-          email: entry.email.trim(),
+          email: String(entry.email).trim(),
           firstName: entry.firstName || '',
           lastName: entry.lastName || ''
         };
@@ -78,9 +95,14 @@ export const sendCampaignUtility = async (campaign) => {
       const rawEmail = getField(contact, ['email']);
       if (!rawEmail) continue;
 
-      const email = rawEmail.trim().toLowerCase();
+      const email = String(rawEmail).trim().toLowerCase();
       const firstName = getField(contact, ['firstName', 'firstname', 'first name']);
       const lastName = getField(contact, ['lastName', 'lastname', 'last name']);
+
+      if (!isValidEmail(email)) {
+        console.warn(`⚠️ Invalid email skipped: ${email}`);
+        continue;
+      }
 
       uniqueContactsMap[email] = {
         email,
@@ -98,19 +120,18 @@ export const sendCampaignUtility = async (campaign) => {
 
     const trackingPixel = `<img src="${BASE_URL}/api/tracking/open/${_id}" width="1" height="1" style="display:none;" />`;
 
-    const BATCH_SIZE = 100;
+    const BATCH_SIZE = 200;
     const contactChunks = chunkArray(finalContacts, BATCH_SIZE);
+    let failedEmails = [];
 
     for (let i = 0; i < contactChunks.length; i++) {
       const chunk = contactChunks[i];
       console.log(`📦 Sending batch ${i + 1}/${contactChunks.length} (${chunk.length} emails)`);
 
-      const sendChunkPromises = chunk.map(contact => {
-        const email = contact.email;
+      const sendChunkPromises = chunk.map(async (contact) => {
+        const email = String(contact.email).trim().toLowerCase();
         const firstName = contact.firstName?.trim() || "Valued";
         const lastName = contact.lastName?.trim() || "Customer";
-
-        console.log(`📧 Sending to: ${email} | First Name: ${firstName} | Last Name: ${lastName}`);
 
         let personalizedContent = htmlContent
           .replace(/{{firstName}}/g, firstName)
@@ -157,18 +178,55 @@ export const sendCampaignUtility = async (campaign) => {
           })
         };
 
-        return sgMail.send(msg);
+        try {
+          await sgMail.send(msg);
+          console.log(`✅ Sent to: ${email}`);
+        } catch (err) {
+          failedEmails.push(email);
+          const errorMsg = err.response?.body?.errors || err.message;
+          console.error(`❌ Failed to send to ${email}:`, errorMsg);
+
+          // Retry once if rate limited
+          if (err.code === 429 || (err.response && err.response.statusCode === 429)) {
+            console.warn(`🕒 Rate limit hit for ${email}, retrying after delay...`);
+            await new Promise(resolve => setTimeout(resolve, 10000));
+            try {
+              await sgMail.send(msg);
+              console.log(`🔁 Retry successful for ${email}`);
+            } catch (retryErr) {
+              console.error(`❌ Retry failed for ${email}:`, retryErr.response?.body?.errors || retryErr.message);
+            }
+          }
+        }
       });
 
       await Promise.all(sendChunkPromises);
 
       if (i < contactChunks.length - 1) {
-        console.log("⏳ Waiting 1 second before next batch...");
+        console.log("⏳ Waiting 2 seconds before next batch...");
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
 
-    return { success: true, emailsSent: finalContacts.length };
+    const successCount = finalContacts.length - failedEmails.length;
+
+    if (successCount > 0) {
+      await Campaign.findByIdAndUpdate(_id, {
+        hasBeenSent: true,
+        status: "sent",
+        sentAt: new Date()
+      });
+      console.log(`✅ Campaign ${_id} marked as sent.`);
+    } else {
+      console.warn(`⚠️ Campaign ${_id} had no successful sends. Not marking as sent.`);
+    }
+
+    return {
+      success: successCount > 0,
+      emailsSent: successCount,
+      failedEmails
+    };
+
   } catch (err) {
     console.error("❌ sendCampaignUtility error:", err);
     if (err.response?.body?.errors) {
