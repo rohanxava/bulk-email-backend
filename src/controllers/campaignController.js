@@ -2,6 +2,16 @@ import Campaign from '../models/campaign.js';
 import sgMail from '@sendgrid/mail';
 import Papa from 'papaparse';
 
+
+function chunkArray(array, size) {
+  const result = [];
+  for (let i = 0; i < array.length; i += size) {
+    result.push(array.slice(i, i + size));
+  }
+  return result;
+}
+
+
 export const sendCampaign = async (req, res) => {
   console.log("📨 Incoming sendCampaign request");
 
@@ -12,8 +22,6 @@ export const sendCampaign = async (req, res) => {
       manualEmails,
       fromEmail,
       sendgridKey,
-      // service,
-      // apiKey,
       campaignName,
       createdBy,
       projectId,
@@ -24,16 +32,14 @@ export const sendCampaign = async (req, res) => {
 
     let csvContent = req.body.csvContent || "";
 
-    // 🔹 Parse CSV contacts
     const csvContacts = csvContent
-  ? Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data.map((row) => ({
-      email: row.Email || row.email || row["email address"] || "",
-      firstName: row.FirstName || row["First Name"] || row.firstname || "",
-      lastName: row.LastName || row["Last Name"] || row.lastname || "",
-    }))
-  : [];
+      ? Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data.map((row) => ({
+        email: row.Email || row.email || row["email address"] || "",
+        firstName: row.FirstName || row["First Name"] || row.firstname || "",
+        lastName: row.LastName || row["Last Name"] || row.lastname || "",
+      }))
+      : [];
 
-    // 🔹 Parse dropdown (list) contacts
     let dropdownContacts = [];
     if (listContacts) {
       try {
@@ -46,7 +52,6 @@ export const sendCampaign = async (req, res) => {
       }
     }
 
-    // 🔹 Manual emails → contact objects
     const manualContactObjects = (Array.isArray(manualEmails)
       ? manualEmails
       : (typeof manualEmails === "string")
@@ -54,10 +59,8 @@ export const sendCampaign = async (req, res) => {
         : []
     ).map(email => ({ email }));
 
-    // 🔹 Combine all contacts
     const allContacts = [...manualContactObjects, ...dropdownContacts, ...csvContacts];
 
-    // 🔹 Deduplicate by email
     const uniqueContactsMap = {};
     allContacts.forEach(contact => {
       const emailKey = Object.keys(contact).find(key => key.toLowerCase() === "email");
@@ -86,12 +89,10 @@ export const sendCampaign = async (req, res) => {
     const parsedSchedule = scheduleDate ? new Date(scheduleDate) : null;
     const now = new Date();
     const isFutureSchedule = parsedSchedule && parsedSchedule > now;
-    
-    // 🔹 Handle file attachment (PDF, etc.)
+
     let attachment = null;
 
     if (req.file) {
-      // 🟢 Priority 1: uploaded file
       attachment = {
         content: req.file.buffer.toString('base64'),
         filename: req.file.originalname,
@@ -99,17 +100,17 @@ export const sendCampaign = async (req, res) => {
         disposition: 'attachment'
       };
     } else if (templateId) {
-      // 🟡 Priority 2: template attachment
       const template = await Template.findById(templateId);
       if (template?.attachment) {
         attachment = {
           content: template.attachment,
-          filename: 'attachment.pdf', // or retrieve from saved meta
+          filename: 'attachment.pdf',
           type: 'application/pdf',
           disposition: 'attachment'
         };
       }
     }
+
     let attachmentFile = null;
     let attachmentMeta = null;
 
@@ -121,6 +122,7 @@ export const sendCampaign = async (req, res) => {
         disposition: attachment.disposition
       };
     }
+
     const campaign = await Campaign.create({
       campaignName,
       subject,
@@ -140,90 +142,101 @@ export const sendCampaign = async (req, res) => {
       ...(attachmentMeta && { attachmentMeta })
     });
 
-
-    // 🔹 Handle scheduled campaigns
     if (isFutureSchedule) {
       return res.status(200).json({
         success: true,
         message: `Campaign scheduled for ${parsedSchedule.toISOString()}`,
         scheduled: true,
         emailsScheduled: finalContacts.length
-
       });
     }
 
-    // 🔹 Proceed with immediate send
     const BASE_URL = "https://bulkmail.xavawebservices.com";
     const trackingPixel = `<img src="${BASE_URL}/api/tracking/open/${campaign._id}" width="1" height="1" style="display:none;" />`;
 
+    const BATCH_SIZE = 200;
+    const emailChunks = chunkArray(emails, BATCH_SIZE);
 
-    const sendPromises = emails.map(email => {
-      let personalizedContent = htmlContent;
+    for (let i = 0; i < emailChunks.length; i++) {
+      const chunk = emailChunks[i];
+      console.log(`📦 Sending batch ${i + 1}/${emailChunks.length} (${chunk.length} emails)`);
 
-      const contact = finalContacts.find(c => {
-        const emailKey = Object.keys(c).find(k => k.toLowerCase() === "email");
-        return emailKey && c[emailKey].toLowerCase() === email.toLowerCase();
-      }) || {};
+      const sendChunkPromises = chunk.map(async email => {
+        let personalizedContent = htmlContent;
 
-      const getField = (obj, keys) => {
-        for (let key of keys) {
-          const match = Object.keys(obj).find(k =>
-            k.toLowerCase().replace(/\s/g, '') === key.toLowerCase().replace(/\s/g, '')
-          );
-          if (match) return obj[match];
+        const contact = finalContacts.find(c => {
+          const emailKey = Object.keys(c).find(k => k.toLowerCase() === "email");
+          return emailKey && c[emailKey].toLowerCase() === email.toLowerCase();
+        }) || {};
+
+        const getField = (obj, keys) => {
+          for (let key of keys) {
+            const match = Object.keys(obj).find(k =>
+              k.toLowerCase().replace(/\s/g, '') === key.toLowerCase().replace(/\s/g, '')
+            );
+            if (match) return obj[match];
+          }
+          return null;
+        };
+
+        const firstName = getField(contact, ["firstName", "firstname", "first name"]) || "Valued";
+        const lastName = getField(contact, ["lastName", "lastname", "last name"]) || "Customer";
+
+        personalizedContent = personalizedContent
+          .replace(/{{firstName}}/g, firstName)
+          .replace(/{{lastName}}/g, lastName);
+
+        for (const key in contact) {
+          const normKey = key.toLowerCase().replace(/\s/g, '');
+          if (
+            !["firstname", "first name", "lastname", "last name", "email"].includes(normKey) &&
+            typeof contact[key] !== 'object' &&
+            contact[key] !== null &&
+            contact[key] !== undefined
+          ) {
+            personalizedContent = personalizedContent.replace(
+              new RegExp(`{{${key}}}`, 'g'),
+              String(contact[key])
+            );
+          }
         }
-        return null;
-      };
 
-      const firstName = getField(contact, ["firstName", "firstname", "first name"]) || "Valued";
-      const lastName = getField(contact, ["lastName", "lastname", "last name"]) || "Customer";
+        const withTrackedLinks = personalizedContent.replace(
+          /href="([^"]+)"/g,
+          (match, href) => {
+            if (href.startsWith('#') || href.includes('/api/tracking/click')) return match;
+            const tracked = `${BASE_URL}/api/tracking/click/${campaign._id}?redirect=${encodeURIComponent(href)}`;
+            return `href="${tracked}"`;
+          }
+        );
 
-      personalizedContent = personalizedContent
-        .replace(/{{firstName}}/g, firstName)
-        .replace(/{{lastName}}/g, lastName);
+        const finalHtml = withTrackedLinks.includes("</body>")
+          ? withTrackedLinks.replace("</body>", `${trackingPixel}</body>`)
+          : withTrackedLinks + trackingPixel;
 
-      // Replace other custom fields
-      for (const key in contact) {
-        const normKey = key.toLowerCase().replace(/\s/g, '');
-        if (
-          !["firstname", "first name", "lastname", "last name", "email"].includes(normKey) &&
-          typeof contact[key] !== 'object' &&
-          contact[key] !== null &&
-          contact[key] !== undefined
-        ) {
-          personalizedContent = personalizedContent.replace(
-            new RegExp(`{{${key}}}`, 'g'),
-            String(contact[key])
-          );
+        const msg = {
+          to: email,
+          from: fromEmail,
+          subject,
+          html: finalHtml,
+          ...(attachment && { attachments: [attachment] })
+        };
+
+        try {
+          await sgMail.send(msg);
+          console.log(`✅ Sent to: ${email}`);
+        } catch (error) {
+          console.error(`❌ Failed to send to ${email}:`, error?.response?.body || error.message);
         }
+      });
+
+      await Promise.all(sendChunkPromises);
+
+      if (i < emailChunks.length - 1) {
+        console.log(`⏳ Waiting 1s before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
-
-      // Add link tracking
-      const withTrackedLinks = personalizedContent.replace(
-        /href="([^"]+)"/g,
-        (match, href) => {
-          if (href.startsWith('#') || href.includes('/api/tracking/click')) return match;
-          const tracked = `${BASE_URL}/api/tracking/click/${campaign._id}?redirect=${encodeURIComponent(href)}`;
-          return `href="${tracked}"`;
-        }
-      );
-
-      const finalHtml = withTrackedLinks.includes("</body>")
-        ? withTrackedLinks.replace("</body>", `${trackingPixel}</body>`)
-        : withTrackedLinks + trackingPixel;
-
-      const msg = {
-        to: email,
-        from: fromEmail,
-        subject,
-        html: finalHtml,
-        ...(attachment && { attachments: [attachment] })
-      };
-
-      return sgMail.send(msg);
-    });
-
-    await Promise.all(sendPromises);
+    }
 
     res.status(200).json({
       success: true,

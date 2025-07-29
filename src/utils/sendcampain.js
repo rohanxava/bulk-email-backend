@@ -3,6 +3,14 @@ import Papa from 'papaparse';
 
 const BASE_URL = "https://bulkmail.xavawebservices.com";
 
+function chunkArray(array, size) {
+  const result = [];
+  for (let i = 0; i < array.length; i += size) {
+    result.push(array.slice(i, i + size));
+  }
+  return result;
+}
+
 export const sendCampaignUtility = async (campaign) => {
   try {
     if (campaign.hasBeenSent) {
@@ -29,12 +37,10 @@ export const sendCampaignUtility = async (campaign) => {
 
     sgMail.setApiKey(sendgridKey);
 
-    // Parse CSV contacts
     const csvContacts = csvContent
       ? Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data
       : [];
 
-    // Normalize manualEmails
     const manualContactObjects = (
       Array.isArray(manualEmails)
         ? manualEmails
@@ -55,10 +61,8 @@ export const sendCampaignUtility = async (campaign) => {
       return null;
     }).filter(Boolean);
 
-    // Combine all contacts - CSV takes priority
     const allContacts = [...manualContactObjects, ...contacts, ...csvContacts];
 
-    // Normalize field extractor
     const getField = (obj, keys) => {
       for (let key of keys) {
         const match = Object.keys(obj).find(k =>
@@ -69,7 +73,6 @@ export const sendCampaignUtility = async (campaign) => {
       return '';
     };
 
-    // Deduplicate by email
     const uniqueContactsMap = {};
     for (const contact of allContacts) {
       const rawEmail = getField(contact, ['email']);
@@ -95,63 +98,75 @@ export const sendCampaignUtility = async (campaign) => {
 
     const trackingPixel = `<img src="${BASE_URL}/api/tracking/open/${_id}" width="1" height="1" style="display:none;" />`;
 
-    const sendPromises = finalContacts.map(contact => {
-      const email = contact.email;
-      const firstName = contact.firstName?.trim() || "Valued";
-      const lastName = contact.lastName?.trim() || "Customer";
+    const BATCH_SIZE = 100;
+    const contactChunks = chunkArray(finalContacts, BATCH_SIZE);
 
-      console.log("📧 Sending to:", email, "| First Name:", firstName, "| Last Name:", lastName);
+    for (let i = 0; i < contactChunks.length; i++) {
+      const chunk = contactChunks[i];
+      console.log(`📦 Sending batch ${i + 1}/${contactChunks.length} (${chunk.length} emails)`);
 
-      let personalizedContent = htmlContent
-        .replace(/{{firstName}}/g, firstName)
-        .replace(/{{lastName}}/g, lastName);
+      const sendChunkPromises = chunk.map(contact => {
+        const email = contact.email;
+        const firstName = contact.firstName?.trim() || "Valued";
+        const lastName = contact.lastName?.trim() || "Customer";
 
-      // Handle custom fields
-      for (const key in contact) {
-        const normalizedKey = key.toLowerCase().replace(/\s/g, '');
-        if (["firstname", "first name", "lastname", "last name", "email"].includes(normalizedKey)) continue;
+        console.log(`📧 Sending to: ${email} | First Name: ${firstName} | Last Name: ${lastName}`);
 
-        const value = contact[key];
-        if (value && typeof value !== 'object') {
-          personalizedContent = personalizedContent.replace(new RegExp(`{{${key}}}`, 'g'), String(value));
+        let personalizedContent = htmlContent
+          .replace(/{{firstName}}/g, firstName)
+          .replace(/{{lastName}}/g, lastName);
+
+        for (const key in contact) {
+          const normKey = key.toLowerCase().replace(/\s/g, '');
+          if (["firstname", "first name", "lastname", "last name", "email"].includes(normKey)) continue;
+
+          const value = contact[key];
+          if (value && typeof value !== 'object') {
+            personalizedContent = personalizedContent.replace(
+              new RegExp(`{{${key}}}`, 'g'),
+              String(value)
+            );
+          }
         }
+
+        const withTrackedLinks = personalizedContent.replace(
+          /href="([^"]+)"/g,
+          (match, href) => {
+            if (href.startsWith('#') || href.includes('/api/tracking/click')) return match;
+            const trackingUrl = `${BASE_URL}/api/tracking/click/${_id}?redirect=${encodeURIComponent(href)}`;
+            return `href="${trackingUrl}"`;
+          }
+        );
+
+        const finalHtml = withTrackedLinks.includes("</body>")
+          ? withTrackedLinks.replace("</body>", `${trackingPixel}</body>`)
+          : withTrackedLinks + trackingPixel;
+
+        const msg = {
+          to: email,
+          from: fromEmail,
+          subject,
+          html: finalHtml,
+          ...(attachmentFile && attachmentMeta && {
+            attachments: [{
+              content: attachmentFile,
+              filename: attachmentMeta.filename,
+              type: attachmentMeta.mimetype,
+              disposition: 'attachment'
+            }]
+          })
+        };
+
+        return sgMail.send(msg);
+      });
+
+      await Promise.all(sendChunkPromises);
+
+      if (i < contactChunks.length - 1) {
+        console.log("⏳ Waiting 1 second before next batch...");
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
-
-      // Add tracking links
-      const withTrackedLinks = personalizedContent.replace(
-        /href="([^"]+)"/g,
-        (match, href) => {
-          if (href.startsWith('#') || href.includes('/api/tracking/click')) return match;
-          const trackingUrl = `${BASE_URL}/api/tracking/click/${_id}?redirect=${encodeURIComponent(href)}`;
-          return `href="${trackingUrl}"`;
-        }
-      );
-
-      const finalHtml = withTrackedLinks.includes("</body>")
-        ? withTrackedLinks.replace("</body>", `${trackingPixel}</body>`)
-        : withTrackedLinks + trackingPixel;
-
-      const msg = {
-        to: email,
-        from: fromEmail,
-        subject,
-        html: finalHtml,
-      };
-
-      if (attachmentFile && attachmentMeta) {
-        msg.attachments = [{
-          content: attachmentFile,
-          filename: attachmentMeta.filename,
-          type: attachmentMeta.mimetype,
-          disposition: 'attachment'
-        }];
-      }
-
-      return sgMail.send(msg);
-    });
-
-    await Promise.all(sendPromises);
-
+    }
 
     return { success: true, emailsSent: finalContacts.length };
   } catch (err) {
