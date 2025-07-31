@@ -68,15 +68,15 @@ exports.uploadList = async (req, res) => {
         res.status(500).json({ message: 'Upload failed' });
     }
 };
-
 exports.getLists = async (req, res) => {
+  console.log('🧑‍💻 req.user:', req.user);
 
-    console.log('🧑‍💻 req.user:', req.user);
+  const lists = await List.find({}).sort({ createdAt: -1 });
 
-    const lists = await List.find({ createdBy: req.user._id }).sort({ createdAt: -1 });
-    res.json(lists);
+  console.log("📦 Lists fetched from DB:", lists);
+
+  res.json(lists);
 };
-
 exports.deleteList = async (req, res) => {
     await List.findByIdAndDelete(req.params.id);
     res.json({ message: 'List deleted' });
