@@ -34,16 +34,16 @@ export const sendCampaign = async (req, res) => {
 
     const csvContacts = csvContent
       ? Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data.map((row) => ({
-        email: row.Email || row.email || row["email address"] || "",
-        firstName: row.FirstName || row["First Name"] || row.firstname || "",
-        lastName: row.LastName || row["Last Name"] || row.lastname || "",
-      }))
+          email: row.Email || row.email || row["email address"] || "",
+          firstName: row.FirstName || row["First Name"] || row.firstname || "",
+          lastName: row.LastName || row["Last Name"] || row.lastname || "",
+        }))
       : [];
 
     let dropdownContacts = [];
     if (listContacts) {
       try {
-        dropdownContacts = typeof listContacts === 'string'
+        dropdownContacts = typeof listContacts === "string"
           ? JSON.parse(listContacts)
           : listContacts;
       } catch (err) {
@@ -54,10 +54,9 @@ export const sendCampaign = async (req, res) => {
 
     const manualContactObjects = (Array.isArray(manualEmails)
       ? manualEmails
-      : (typeof manualEmails === "string")
-        ? manualEmails.split(",").map(e => e.trim()).filter(e => e.includes("@"))
-        : []
-    ).map(email => ({ email }));
+      : typeof manualEmails === "string"
+      ? manualEmails.split(",").map(e => e.trim()).filter(e => e.includes("@"))
+      : []).map(email => ({ email }));
 
     const allContacts = [...manualContactObjects, ...dropdownContacts, ...csvContacts];
 
@@ -76,7 +75,7 @@ export const sendCampaign = async (req, res) => {
     }
 
     if (!sendgridKey) {
-      return res.status(400).json({ error: 'SendGrid API key is missing' });
+      return res.status(400).json({ error: "SendGrid API key is missing" });
     }
 
     sgMail.setApiKey(sendgridKey);
@@ -91,24 +90,37 @@ export const sendCampaign = async (req, res) => {
     const isFutureSchedule = parsedSchedule && parsedSchedule > now;
 
     let attachment = null;
+    let template = null;
+
+    if (templateId) {
+      try {
+        template = await Template.findById(templateId);
+
+        if (!template) {
+          console.warn("⚠️ Template not found for ID:", templateId);
+        } else if (template.attachment) {
+          console.log("📎 Template attachment found.");
+          attachment = {
+            content: template.attachment,
+            filename: "attachment.pdf",
+            type: "application/pdf",
+            disposition: "attachment"
+          };
+        } else {
+          console.log("ℹ️ Template found but has no attachment.");
+        }
+      } catch (err) {
+        console.error("❌ Failed to fetch template:", err);
+      }
+    }
 
     if (req.file) {
       attachment = {
-        content: req.file.buffer.toString('base64'),
+        content: req.file.buffer.toString("base64"),
         filename: req.file.originalname,
         type: req.file.mimetype,
-        disposition: 'attachment'
+        disposition: "attachment"
       };
-    } else if (templateId) {
-      const template = await Template.findById(templateId);
-      if (template?.attachment) {
-        attachment = {
-          content: template.attachment,
-          filename: 'attachment.pdf',
-          type: 'application/pdf',
-          disposition: 'attachment'
-        };
-      }
     }
 
     let attachmentFile = null;
@@ -127,7 +139,7 @@ export const sendCampaign = async (req, res) => {
       campaignName,
       subject,
       htmlContent,
-      status: isFutureSchedule ? 'Scheduled' : 'Sent',
+      status: isFutureSchedule ? "Scheduled" : "Sent",
       recipients: emails.length,
       createdBy,
       csvContent,
@@ -233,7 +245,7 @@ export const sendCampaign = async (req, res) => {
       await Promise.all(sendChunkPromises);
 
       if (i < emailChunks.length - 1) {
-        console.log(`⏳ Waiting 1s before next batch...`);
+        console.log(`⏳ Waiting 2s before next batch...`);
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
@@ -249,6 +261,7 @@ export const sendCampaign = async (req, res) => {
     res.status(500).json({ success: false, error: err.message || 'Failed to send campaign' });
   }
 };
+
 
 
 export const getCampaigns = async (req, res) => {
