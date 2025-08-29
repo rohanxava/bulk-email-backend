@@ -21,7 +21,8 @@ export const sendCampaign = async (req, res) => {
       htmlContent,
       manualEmails,
       fromEmail,
-      sendgridKey,
+      service,
+      apiKey,
       campaignName,
       createdBy,
       projectId,
@@ -74,11 +75,11 @@ export const sendCampaign = async (req, res) => {
       return res.status(400).json({ error: "No valid contacts provided" });
     }
 
-    if (!sendgridKey) {
-      return res.status(400).json({ error: "SendGrid API key is missing" });
+    if (!apiKey) {
+      return res.status(400).json({ error: "API key is missing" });
     }
 
-    sgMail.setApiKey(sendgridKey);
+    sgMail.setApiKey(apiKey);
 
     const emails = finalContacts.map(c => {
       const emailKey = Object.keys(c).find(k => k.toLowerCase() === "email");
